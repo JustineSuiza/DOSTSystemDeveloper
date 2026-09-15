@@ -1,0 +1,102 @@
+/* Goals table design matching Projects/Major styles */
+.goals-table-wrapper{
+  width:100%;
+}
+
+.goals-table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0 0;
+  background:transparent;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* Header */
+.goals-table thead th{
+  font-weight:800;
+  color:#222;
+  font-size:15px;
+  padding:14px 12px;
+  text-align:left;
+  border-bottom:1px solid #eee;
+}
+
+/* Rows */
+.goals-table tbody tr{
+  height:auto;
+  min-height:72px;
+}
+
+.goals-table tbody td{
+  padding:14px 12px;
+  vertical-align:middle;
+  font-size:14px;
+  color:#222;
+  border-bottom:1px solid #f3f3f3;
+}
+
+.goals-table tbody tr:nth-child(odd) td{
+  background:#fafafa;
+}
+
+.goals-table .goal-name{
+  font-weight:700;
+  color:#222;
+}
+
+.goals-table .goal-desc{
+  color:#334155;
+}
+
+.goals-table tbody tr:hover{
+  background:#f8f9fa;
+}
+
+.goal-desc{
+  color:#334155;
+  white-space:pre-wrap;
+  line-height:1.45;
+}
+
+/* Ensure table matches DataTable spacing for mobile/tablet */
+@media (max-width: 992px){
+  .goals-table thead th{ font-size:13px; padding:12px; }
+  .goals-table tbody td{ padding:12px; }
+}
+
+/* Mobile: make table look like cards */
+@media (max-width: 767px){
+  .goals-table thead{ display:none; }
+  .goals-table tbody td{ display:block; width:100%; box-sizing:border-box; }
+  .goals-table tbody tr{ display:block; margin-bottom:12px; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(12,23,40,0.03); background:#fff; }
+  .goals-table tbody td:before{
+    content: attr(data-label);
+    display:block;
+    font-weight:600;
+    color:#0d6efd;
+    padding:10px 16px 0 16px;
+  }
+  .goals-table tbody td{ padding:8px 16px 14px 16px; }
+}
+
+/* Minor adjustments to align with major-table styles already present in the project */
+.major-table { width: 100%; }
+.major-table thead th { border-bottom: 1px solid #ddd; }
+.major-table .rdt_TableRow:hover { background: #f8f9fa; }
+.major-table .rdt_TableHeadRow .rdt_TableCell { font-weight: normal; padding: 14px 12px; font-size: 14px; border-bottom: 2px solid #ccc; white-space: normal !important; overflow: visible !important; overflow-wrap: break-word !important; word-break: break-word !important; text-overflow: clip !important; max-width: none !important; }
+.major-table .rdt_TableRow .rdt_TableCell { padding: 14px 12px; border-bottom: 2px solid #ddd; color: #222; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; vertical-align: top; height: auto !important; overflow: visible !important; }
+.major-table .rdt_TableHeadCell { height: auto !important; min-height: 48px; max-width: none !important; white-space: normal !important; }
+.major-table tbody tr,
+.major-table .rdt_TableRow { min-height: 72px !important; height: auto !important; }
+.major-table .rdt_Table { border-collapse: collapse; }
+.major-table .rdt_TableRow:last-child .rdt_TableCell { border-bottom: 2px solid #ddd; }
+.major-table .rdt_TableCell > div { width: 100%; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; }
+
+.notif-item:hover {
+  background-color: #EEEEEE;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+/* ensure pagination spacing mirrors Projects */
+.major-table .rdt_Pagination { border-top: 1px solid #e9ecef; margin-top: 0.75rem; padding-top: 0.75rem; }

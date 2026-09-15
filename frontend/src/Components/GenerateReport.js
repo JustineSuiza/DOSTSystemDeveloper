@@ -8,16 +8,83 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { Tooltip } from 'react-tooltip';
 import * as XLSX from 'xlsx';
 
+const normalizeRegionLabel = (region) => {
+    if (!region) return '';
+
+    const normalized = String(region).trim();
+    const aliases = {
+        'Region I: Ilocos Region': 'Region I (Ilocos Region)',
+        'Region II: Cagayan Valley': 'Region II (Cagayan Valley)',
+        'Region III: Central Luzon': 'Region III (Central Luzon)',
+        'Region IV-A: CALABARZON': 'Region IV-A (CALABARZON)',
+        'Region IV-B: MIMAROPA': 'Region IV-B (MIMAROPA)',
+        'Region V: Bicol Region': 'Region V (Bicol Region)',
+        'Region VI: Western Visayas': 'Region VI (Western Visayas)',
+        'Region VII: Central Visayas': 'Region VII (Central Visayas)',
+        'Region VIII: Eastern Visayas': 'Region VIII (Eastern Visayas)',
+        'Region IX: Zamboanga Peninsula': 'Region IX (Zamboanga Peninsula)',
+        'Region X: Northern Mindanao': 'Region X (Northern Mindanao)',
+        'Region XI: Davao Region': 'Region XI (Davao Region)',
+        'Region XII: SOCCSKSARGEN': 'Region XII (SOCCSKSARGEN)',
+        'Region XIII: Caraga': 'Region XIII (Caraga)',
+        'NCR: National Capital Region': 'National Capital Region (NCR)',
+        'NCR: National Capital Region (Metro Manila)': 'National Capital Region (NCR)',
+        'National Capital Region': 'National Capital Region (NCR)',
+        'CAR: Cordillera Administrative Region': 'Cordillera Administrative Region (CAR)',
+        'Autonomous Region in Muslim Mindanao': 'Autonomous Region in Muslim Mindanao (ARMM)',
+        'Bangsamoro Autonomous Region in Muslim Mindanao': 'Autonomous Region in Muslim Mindanao (ARMM)',
+    };
+
+    return aliases[normalized] || normalized;
+};
+
+export const matchesReportFilters = (item, filters = {}) => {
+    const {
+        selectedStatus = [],
+        selectedFunding = [],
+        selectedRegion = [],
+        selectedTagging = [],
+    } = filters;
+
+    const statusValue = item.status || item.remarks;
+    const normalizedTagging = (item.tagging || '').toString().trim().toLowerCase();
+    const normalizedSelectedTagging = selectedTagging.map(tag => (tag || '').toString().trim().toLowerCase());
+
+    if (selectedStatus.length > 0 && !selectedStatus.includes(statusValue)) {
+        return false;
+    }
+
+    if (selectedFunding.length > 0 && !selectedFunding.includes(item.funding)) {
+        return false;
+    }
+
+    const itemRegion = normalizeRegionLabel(item.region || item.releaseData?.regionIA);
+    const normalizedSelectedRegions = selectedRegion.map(normalizeRegionLabel);
+    if (normalizedSelectedRegions.length > 0 && !normalizedSelectedRegions.includes(itemRegion)) {
+        return false;
+    }
+
+    if (selectedTagging.length > 0) {
+        if (!normalizedTagging || !normalizedSelectedTagging.includes(normalizedTagging)) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 export const GenerateReport = ({ sidebarExpanded }) => {
     const [originalInfo, setOriginalInfo] = useState([]);
     const [info, setInfo] = useState([]);
     const [selectedColumns, setSelectedColumns] = useState([]);
-    const [selectedYear, setSelectedYear] = useState('');
+    const [selectedYears, setSelectedYears] = useState([]);
     const location = useLocation();
     const state = location.state;
     const [filterValue, setFilterValue] = useState('');
-    const [selectedRemarks, setSelectedRemarks] = useState([]);
-    const [selectedFunding, setSelectedFunding] = useState([]); 
+    const [selectedStatus, setSelectedStatus] = useState([]);
+    const [selectedFunding, setSelectedFunding] = useState([]);
+    const [selectedRegion, setSelectedRegion] = useState([]);
+    const [selectedTagging, setSelectedTagging] = useState([]);
 
     useEffect(() => {
         // getInfo();
@@ -41,13 +108,29 @@ export const GenerateReport = ({ sidebarExpanded }) => {
         }
     };    
 
-    const handleRemarkToggle = (remark) => {
-        if (selectedRemarks.includes(remark)) {
-            setSelectedRemarks(selectedRemarks.filter(r => r !== remark));
+    const handleRegionToggle = (region) => {
+        if (selectedRegion.includes(region)) {
+            setSelectedRegion(selectedRegion.filter(item => item !== region));
         } else {
-            setSelectedRemarks([...selectedRemarks, remark]);
+            setSelectedRegion([...selectedRegion, region]);
+        }
+    };
+
+    const handleStatusToggle = (status) => {
+        if (selectedStatus.includes(status)) {
+            setSelectedStatus(selectedStatus.filter(r => r !== status));
+        } else {
+            setSelectedStatus([...selectedStatus, status]);
         }
     };    
+
+    const handleTaggingToggle = (tag) => {
+        if (selectedTagging.includes(tag)) {
+            setSelectedTagging(selectedTagging.filter(item => item !== tag));
+        } else {
+            setSelectedTagging([...selectedTagging, tag]);
+        }
+    };
 
     const handleColumnToggle = (title) => {
         if (selectedColumns.includes(title)) {
@@ -184,13 +267,7 @@ export const GenerateReport = ({ sidebarExpanded }) => {
         const filteredData = filterDataByYear();
     
         return filteredData.map(item => {
-            // Filter by selected remarks
-            if (selectedRemarks.length > 0 && !selectedRemarks.includes(item.remarks)) {
-                return false;
-            }
-    
-            // Filter by selected funding
-            if (selectedFunding.length > 0 && !selectedFunding.includes(item.funding)) {
+            if (!matchesReportFilters(item, { selectedStatus, selectedFunding, selectedRegion, selectedTagging })) {
                 return false;
             }
     
@@ -298,18 +375,18 @@ export const GenerateReport = ({ sidebarExpanded }) => {
     };
     
     const filterDataByYear = () => {
-        if (!selectedYear) return state;
+        if (selectedYears.length === 0) return state;
         return state.filter(item => {
             const start = item.changeStart || item.originalStart; // Use changeStart if available
-            return new Date(start).getFullYear() === parseInt(selectedYear);
+            return selectedYears.includes(new Date(start).getFullYear());
         });
     };
 
     const handleYearToggle = (year) => {
-        if (selectedYear === year) {
-            setSelectedYear('');
+        if (selectedYears.includes(year)) {
+            setSelectedYears(selectedYears.filter(selectedYear => selectedYear !== year));
         } else {
-            setSelectedYear(year);
+            setSelectedYears([...selectedYears, year]);
         }
     };
 
@@ -377,7 +454,17 @@ export const GenerateReport = ({ sidebarExpanded }) => {
                         placeholder='Select Columns'
                         autoComplete='off'
                     />
-                    <ul className={`dropdown-menu dropdown-submenu p-2 ${getColumnTitles().length > 10 ? 'scrollable-dropdown' : ''}`} style={{ marginTop: '-20px' }}>
+                    <ul
+                        className={`dropdown-menu p-2 ${getColumnTitles().length > 10 ? 'scrollable-dropdown' : ''}`}
+                        style={{
+                            marginTop: '-20px',
+                            minWidth: '280px',
+                            maxWidth: 'calc(100vw - 20px)',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            zIndex: 1055,
+                        }}
+                    >
                         {getColumnTitles().map((title, index) => (
                             <div key={index} className="form-check">
                                 <input 
@@ -399,75 +486,210 @@ export const GenerateReport = ({ sidebarExpanded }) => {
                     </ul>
                 </div>
                 <div className="py-2">
-                    <h6>Filter Year:</h6>
-                    <ul className="list-unstyled">
-                        {uniqueYears
-                            .sort((a, b) => a - b) // Sort the years from least to greatest
-                            .map((year, index) => (
-                                <div key={index} className="form-check">
-                                    <input
-                                        type='checkbox'
-                                        className='form-check-input'
-                                        id={`yearCheckbox-${year}`}
-                                        onChange={() => handleYearToggle(year)}
-                                        checked={selectedYear === year}
-                                    />
-                                    <label
-                                        className="form-check-label"
-                                        htmlFor={`yearCheckbox-${year}`}
-                                        style={{ fontSize: '14px' }}
-                                    >
-                                        {year}
-                                    </label>
-                                </div>
+                    <div className="dropdown">
+                        <div
+                            className="d-flex align-items-center justify-content-between px-2 py-2 rounded border bg-white"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            style={{ cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            <span className="d-flex align-items-center gap-2">
+                                <i className="fa-solid fa-calendar"></i>
+                                <span>Filter Year</span>
+                            </span>
+                            <i className="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <ul className="dropdown-menu p-2" style={{ minWidth: '100%' }}>
+                            {uniqueYears
+                                .sort((a, b) => a - b)
+                                .map((year, index) => (
+                                    <li key={index}>
+                                        <div className="form-check">
+                                            <input
+                                                type='checkbox'
+                                                className='form-check-input'
+                                                id={`yearCheckbox-${year}`}
+                                                onChange={() => handleYearToggle(year)}
+                                                checked={selectedYears.includes(year)}
+                                            />
+                                            <label
+                                                className="form-check-label"
+                                                htmlFor={`yearCheckbox-${year}`}
+                                                style={{ fontSize: '14px' }}
+                                            >
+                                                {year}
+                                            </label>
+                                        </div>
+                                    </li>
+                                ))}
+                        </ul>
+                    </div>
+                </div>
+                <div className="py-2">
+                    <div className="dropdown">
+                        <div
+                            className="d-flex align-items-center justify-content-between px-2 py-2 rounded border bg-white"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            style={{ cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            <span className="d-flex align-items-center gap-2">
+                                <i className="fa-solid fa-list-check"></i>
+                                <span>Filter Status</span>
+                            </span>
+                            <i className="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <ul className="dropdown-menu p-2" style={{ minWidth: '100%' }}>
+                            {['New', 'On-going', 'Completed', 'Liquidated', 'Ongoing Liquidation', 'Unliquidated', 'Cleared', 'Interminated', 'Terminated'].map((status, index) => (
+                                <li key={index}>
+                                    <div className="form-check">
+                                        <input
+                                            type='checkbox'
+                                            className='form-check-input'
+                                            id={`statusCheckbox-${status}`}
+                                            onChange={() => handleStatusToggle(status)}
+                                            checked={selectedStatus.includes(status)}
+                                        />
+                                        <label
+                                            className="form-check-label"
+                                            htmlFor={`statusCheckbox-${status}`}
+                                            style={{ fontSize: '14px' }}
+                                        >
+                                            {status}
+                                        </label>
+                                    </div>
+                                </li>
                             ))}
-                    </ul>
+                        </ul>
+                    </div>
                 </div>
                 <div className="py-2">
-                    <h6>Filter Remarks:</h6>
-                    <ul className="list-unstyled">
-                        {['New', 'Ongoing', 'Completed', 'Terminated'].map((remark, index) => (
-                            <div key={index} className="form-check">
-                                <input
-                                    type='checkbox'
-                                    className='form-check-input'
-                                    id={`remarkCheckbox-${remark}`}
-                                    onChange={() => handleRemarkToggle(remark)}
-                                    checked={selectedRemarks.includes(remark)}
-                                />
-                                <label
-                                    className="form-check-label"
-                                    htmlFor={`remarkCheckbox-${remark}`}
-                                    style={{ fontSize: '14px' }}
-                                >
-                                    {remark}
-                                </label>
-                            </div>
-                        ))}
-                    </ul>
+                    <div className="dropdown">
+                        <div
+                            className="d-flex align-items-center justify-content-between px-2 py-2 rounded border bg-white"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            style={{ cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            <span className="d-flex align-items-center gap-2">
+                                <i className="fa-solid fa-tags"></i>
+                                <span>Filter Tagging</span>
+                            </span>
+                            <i className="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <ul className="dropdown-menu p-2" style={{ minWidth: '100%' }}>
+                            {['Smart', 'Climate change', 'Biodive'].map((tag, index) => (
+                                <li key={index}>
+                                    <div className="form-check">
+                                        <input
+                                            type='checkbox'
+                                            className='form-check-input'
+                                            id={`taggingCheckbox-${tag}`}
+                                            onChange={() => handleTaggingToggle(tag)}
+                                            checked={selectedTagging.includes(tag)}
+                                        />
+                                        <label
+                                            className="form-check-label"
+                                            htmlFor={`taggingCheckbox-${tag}`}
+                                            style={{ fontSize: '14px' }}
+                                        >
+                                            {tag}
+                                        </label>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
                 <div className="py-2">
-                    <h6>Filter Funding:</h6>
-                    <ul className="list-unstyled">
-                        {['PCAARRD GIA', 'DOST GIA'].map((funding, index) => (
-                            <div key={index} className="form-check">
-                                <input
-                                    type='checkbox'
-                                    className='form-check-input'
-                                    id={`fundingCheckbox-${funding}`}
-                                    onChange={() => handleFundingToggle(funding)}
-                                    checked={selectedFunding.includes(funding)}
-                                />
-                                <label
-                                    className="form-check-label"
-                                    htmlFor={`fundingCheckbox-${funding}`}
-                                    style={{ fontSize: '14px' }}
-                                >
-                                    {funding}
-                                </label>
-                            </div>
-                        ))}
-                    </ul>
+                    <div className="dropdown">
+                        <div
+                            className="d-flex align-items-center justify-content-between px-2 py-2 rounded border bg-white"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            style={{ cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            <span className="d-flex align-items-center gap-2">
+                                <i className="fa-solid fa-coins"></i>
+                                <span>Filter Funding</span>
+                            </span>
+                            <i className="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <ul className="dropdown-menu p-2" style={{ minWidth: '100%' }}>
+                            {['PCAARRD GIA', 'DOST GIA'].map((funding, index) => (
+                                <li key={index}>
+                                    <div className="form-check">
+                                        <input
+                                            type='checkbox'
+                                            className='form-check-input'
+                                            id={`fundingCheckbox-${funding}`}
+                                            onChange={() => handleFundingToggle(funding)}
+                                            checked={selectedFunding.includes(funding)}
+                                        />
+                                        <label
+                                            className="form-check-label"
+                                            htmlFor={`fundingCheckbox-${funding}`}
+                                            style={{ fontSize: '14px' }}
+                                        >
+                                            {funding}
+                                        </label>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+                <div className="py-2">
+                    <div className="dropdown">
+                        <div
+                            className="d-flex align-items-center justify-content-between px-2 py-2 rounded border bg-white"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            style={{ cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            <span className="d-flex align-items-center gap-2">
+                                <i className="fa-solid fa-location-dot"></i>
+                                <span>Filter Regions</span>
+                            </span>
+                            <i className="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <ul className="dropdown-menu p-2" style={{ minWidth: '100%' }}>
+                            {[
+                                'Region I (Ilocos Region)',
+                                'Region II (Cagayan Valley)',
+                                'Region III (Central Luzon)',
+                                'Region IV-A (CALABARZON)',
+                                'Region IV-B (MIMAROPA)',
+                                'Region V (Bicol Region)',
+                                'Region VI (Western Visayas)',
+                                'Region VII (Central Visayas)',
+                                'Region VIII (Eastern Visayas)',
+                                'Region IX (Zamboanga Peninsula)',
+                                'Region X (Northern Mindanao)',
+                                'Region XI (Davao Region)',
+                                'Region XII (SOCCSKSARGEN)',
+                                'National Capital Region (NCR)',
+                                'Cordillera Administrative Region (CAR)',
+                                'Autonomous Region in Muslim Mindanao (ARMM)',
+                                'Region XIII (Caraga)',
+                            ].map((region, index) => (
+                                <li key={index}>
+                                    <div className="form-check">
+                                        <input
+                                            type="checkbox"
+                                            className="form-check-input"
+                                            id={`regionCheckbox-${index}`}
+                                            onChange={() => handleRegionToggle(region)}
+                                            checked={selectedRegion.includes(region)}
+                                        />
+                                        <label className="form-check-label" htmlFor={`regionCheckbox-${index}`} style={{ fontSize: '14px' }}>
+                                            {region}
+                                        </label>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
 
             </div>

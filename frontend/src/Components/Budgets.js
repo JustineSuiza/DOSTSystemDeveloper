@@ -5,6 +5,7 @@ import DataTable from 'react-data-table-component';
 import * as XLSX from 'xlsx';
 import { Tooltip } from 'react-tooltip';
 import { useLocation } from "react-router-dom";
+import './Dashboard.css';
 import FilterBudgetModal from './FilterBudgetModal';
 
 const Budgets = ({ data, sidebarExpanded }) => {
@@ -19,6 +20,22 @@ const Budgets = ({ data, sidebarExpanded }) => {
     const location = useLocation();
     const state = location.state;
     const [filterValue, setFilterValue] = useState('');
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Handle responsive breakpoints
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         getInfo();
@@ -30,6 +47,21 @@ const Budgets = ({ data, sidebarExpanded }) => {
         }
     }, [state]);
 
+    // Auto-refresh data when page becomes visible (e.g., after editing)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                getInfo();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
     const getInfo = async () => {
         const response = await axios.get('http://localhost:8080/Projects');
         setOriginalInfo(response.data);
@@ -37,6 +69,45 @@ const Budgets = ({ data, sidebarExpanded }) => {
         calculateYearlyTotals(response.data);
         fetchAvailableYears(response.data);
         fetchAvailableISPs(response.data);
+    };
+
+    // Helper to get budget value for a given row and calendar year
+    const getBudgetValueForYear = (row, year) => {
+        if (!row) return 0;
+        // determine project start/end
+        let startYear, endYear;
+        if (row.changeStart || row.changeImplementationDate) {
+            startYear = new Date(row.changeStart || row.originalStart).getFullYear();
+            endYear = new Date(row.changeImplementationDate || row.originalEnd).getFullYear();
+        } else if (row.originalStart && row.originalEnd) {
+            startYear = new Date(row.originalStart).getFullYear();
+            endYear = new Date(row.originalEnd).getFullYear();
+        }
+
+        const yearNum = parseInt(year);
+        const withinDuration = (startYear && endYear) ? (yearNum >= startYear && yearNum <= endYear) : true;
+        if (!withinDuration) return 0;
+
+        if (!row.budget) return 0;
+
+        // prefer calendar year keys
+        let val = row.budget[year];
+        if (val === undefined) {
+            if (startYear) {
+                const idx = yearNum - startYear + 1;
+                if (idx >= 1 && row.budget[String(idx)] !== undefined) {
+                    val = row.budget[String(idx)];
+                }
+            }
+        }
+
+        if (val === undefined || val === null || val === '') return 0;
+        const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : Number(val);
+        return isNaN(num) ? 0 : num;
+    };
+
+    const computeRowTotal = (row) => {
+        return allYears.reduce((acc, y) => acc + getBudgetValueForYear(row, y), 0);
     };
 
     const refreshData = () => {
@@ -65,6 +136,143 @@ const Budgets = ({ data, sidebarExpanded }) => {
                 value.toString().toLowerCase().includes(filterValue.toLowerCase())
         )
     );
+
+    const importFromExcel = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    const findColumn = (row, ...possibleNames) => {
+                        const rowKeys = Object.keys(row);
+                        for (let name of possibleNames) {
+                            if (row[name] !== undefined) return row[name];
+                            const found = rowKeys.find(key => key.toLowerCase() === name.toLowerCase());
+                            if (found) return row[found];
+                            const partial = rowKeys.find(key => key.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(key.toLowerCase()));
+                            if (partial) return row[partial];
+                        }
+                        return null;
+                    };
+
+                    const autoDetectColumns = (data) => {
+                        const sample = data.slice(0, 30);
+                        const headers = Object.keys(sample[0] || {});
+                        const scores = {};
+
+                        headers.forEach(h => {
+                            const vals = sample.map(r => r[h]).filter(v => v !== undefined && v !== null && v !== '');
+                            const nv = vals.length;
+                            let yearCount = 0, amountCount = 0, textCount = 0;
+                            vals.forEach(v => {
+                                const s = String(v).trim();
+                                if (/^\d{4}$/.test(s) && parseInt(s) > 1900 && parseInt(s) < 2100) yearCount++;
+                                const num = parseFloat(String(s).replace(/[^0-9.-]/g, ''));
+                                if (!isNaN(num) && /[0-9]/.test(s)) amountCount++;
+                                if (/[a-zA-Z]/.test(s)) textCount++;
+                            });
+                            scores[h] = {
+                                yearScore: nv ? yearCount / nv : 0,
+                                amountScore: nv ? amountCount / nv : 0,
+                                textScore: nv ? textCount / nv : 0
+                            };
+                        });
+
+                        // pick best header by score for each type
+                        const pickBest = (key) => {
+                            let best = null, bestScore = -1;
+                            headers.forEach(h => {
+                                const s = scores[h];
+                                const val = s ? s[key] : 0;
+                                if (val > bestScore) {
+                                    bestScore = val; best = h;
+                                }
+                            });
+                            return { header: best, score: bestScore };
+                        };
+
+                        const yearPick = pickBest('yearScore');
+                        const amountPick = pickBest('amountScore');
+                        const textPick = pickBest('textScore');
+
+                        // ensure uniqueness: if duplicates, pick next-best
+                        const used = new Set();
+                        const chooseUnique = (preferredOrder) => {
+                            for (let pref of preferredOrder) {
+                                let bestH = null; let bestS = -1;
+                                headers.forEach(h => {
+                                    if (used.has(h)) return;
+                                    const s = scores[h] ? scores[h][pref] : 0;
+                                    if (s > bestS) { bestS = s; bestH = h; }
+                                });
+                                if (bestH) { used.add(bestH); return { header: bestH, score: bestS }; }
+                            }
+                            return { header: null, score: 0 };
+                        };
+
+                        const detectedYear = chooseUnique(['yearScore', 'amountScore', 'textScore']);
+                        const detectedAmount = chooseUnique(['amountScore', 'textScore', 'yearScore']);
+                        const detectedTitle = chooseUnique(['textScore', 'amountScore', 'yearScore']);
+                        const detectedTotal = chooseUnique(['amountScore', 'textScore', 'yearScore']);
+
+                        return {
+                            projectTitle: detectedTitle.header,
+                            year: detectedYear.header,
+                            amount: detectedAmount.header,
+                            totalBudget: detectedTotal.header
+                        };
+                    };
+
+                    console.log('Parsed sheet jsonData (first 10 rows):', jsonData.slice(0, 10));
+
+                    // Detect columns automatically if headers don't match expected names
+                    const mapping = autoDetectColumns(jsonData);
+                    console.log('Auto-detected mapping:', mapping);
+
+                    const rowsToImport = jsonData.map(row => {
+                        const getVal = (colNames) => {
+                            // Try explicit name matching first
+                            const explicit = findColumn(row, ...colNames);
+                            if (explicit !== null) return explicit;
+                            // Then try detected header
+                            const det = mapping[colNames[0] === 'Project Title' ? 'projectTitle' : (colNames[0] === 'Year' ? 'year' : (colNames[0] === 'Amount' ? 'amount' : 'totalBudget'))];
+                            if (det && row[det] !== undefined) return row[det];
+                            return null;
+                        };
+
+                        return {
+                            projectTitle: getVal(['Project Title', 'Project', 'Project Name']) || null,
+                            year: getVal(['Year', 'year']) || null,
+                            amount: getVal(['Amount', 'amount', 'Value']) || null,
+                            totalBudget: getVal(['Total', 'Total Budget', 'totalBudget']) || null,
+                        };
+                    }).filter(r => r.projectTitle && r.year && (r.amount !== null && r.amount !== undefined && r.amount !== ''));
+                    
+                    console.log('rowsToImport (first 20):', rowsToImport.slice(0, 20));
+                    const response = await axios.post('http://localhost:8080/ImportBudgets', rowsToImport);
+                    if (response.status === 200) {
+                        alert('Budgets imported successfully!');
+                        getInfo();
+                    }
+                } catch (error) {
+                    console.error('Error importing budgets:', error);
+                    alert('Error importing budgets: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            alert('Error reading file: ' + error.message);
+        }
+        event.target.value = '';
+    };
 
     const exportToExcel = () => {
         const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
@@ -126,10 +334,41 @@ const Budgets = ({ data, sidebarExpanded }) => {
                 'Program Leader': row.programLeader,
                 'Duration': duration,
                 ...allYears.reduce((acc, year) => {
-                    acc[year] = row.budget && row.budget[year] ? parseFloat(row.budget[year].replace(/,/g, '')) : 0;
+                    // Determine duration for export: only include values for years within project duration
+                    let startYear, endYear;
+                    if (row.changeStart || row.changeImplementationDate) {
+                        startYear = new Date(row.changeStart || row.originalStart).getFullYear();
+                        endYear = new Date(row.changeImplementationDate || row.originalEnd).getFullYear();
+                    } else if (row.originalStart && row.originalEnd) {
+                        startYear = new Date(row.originalStart).getFullYear();
+                        endYear = new Date(row.originalEnd).getFullYear();
+                    }
+                    const yearNum = parseInt(year);
+                    const withinDuration = (startYear && endYear) ? (yearNum >= startYear && yearNum <= endYear) : true;
+
+                    if (withinDuration) {
+                        // prefer calendar year keys
+                        if (row.budget && row.budget[year] !== undefined) {
+                            acc[year] = parseFloat(row.budget[year].toString().replace(/,/g, ''));
+                        } else {
+                            // map numeric indexes to calendar years using startYear
+                            if (startYear) {
+                                const idx = yearNum - startYear + 1;
+                                if (idx >= 1 && row.budget && row.budget[String(idx)] !== undefined) {
+                                    acc[year] = parseFloat(row.budget[String(idx)].toString().replace(/,/g, ''));
+                                } else {
+                                    acc[year] = 0;
+                                }
+                            } else {
+                                acc[year] = 0;
+                            }
+                        }
+                    } else {
+                        acc[year] = '';
+                    }
                     return acc;
                 }, {}),
-                'Total': row.totalBudget ? parseFloat(row.totalBudget.replace(/,/g, '')) : 0,
+                'Total': computeRowTotal(row),
                 'Remarks': row.remarks,
             };
     
@@ -199,15 +438,30 @@ const Budgets = ({ data, sidebarExpanded }) => {
         a.click();
     };
 
-    const allYears = originalInfo.reduce((years, project) => {
-        const projectYears = project.budget ? Object.keys(project.budget) : [];
-        projectYears.forEach(year => {
-            if (!years.includes(year)) {
-                years.push(year);
-            }
-        });
-        return years;
-    }, []).sort((a, b) => parseInt(a) - parseInt(b));
+    const allYears = (() => {
+        // Always show headers from 2011 through 2030. Also include any years found in project budgets.
+        const defaultYears = Array.from({ length: 2030 - 2011 + 1 }, (_, i) => String(2011 + i));
+            const years = originalInfo.reduce((acc, project) => {
+                const projectYears = project.budget ? Object.keys(project.budget) : [];
+                projectYears.forEach(year => {
+                    const yearNum = parseInt(year);
+                    // only include calendar year keys (>=2011). Skip numeric indices like 1,2,3,4
+                    if (!isNaN(yearNum) && yearNum >= 2011 && !acc.includes(year)) {
+                        acc.push(year);
+                    }
+                });
+                return acc;
+            }, []);
+
+            // Ensure default range years are present
+            defaultYears.forEach(year => {
+                if (!years.includes(year)) {
+                    years.push(year);
+                }
+            });
+
+        return years.sort((a, b) => parseInt(a) - parseInt(b));
+    })();
 
     const columns = [
         { name: 'No.', selector: (row, index) => index + 1, sortable: true, width: '70px' },
@@ -271,10 +525,47 @@ const Budgets = ({ data, sidebarExpanded }) => {
         },             
         ...allYears.map(year => ({
             name: year,
-            selector: row => row.budget && row.budget[year] ? row.budget[year] : '',
+            selector: row => {
+                // Determine project duration years
+                let startYear, endYear;
+                if (row.changeStart || row.changeImplementationDate) {
+                    startYear = new Date(row.changeStart || row.originalStart).getFullYear();
+                    endYear = new Date(row.changeImplementationDate || row.originalEnd).getFullYear();
+                } else if (row.originalStart && row.originalEnd) {
+                    startYear = new Date(row.originalStart).getFullYear();
+                    endYear = new Date(row.originalEnd).getFullYear();
+                }
+
+                const yearNum = parseInt(year);
+                // If duration is not available, fall back to showing value if present
+                const withinDuration = (startYear && endYear) ? (yearNum >= startYear && yearNum <= endYear) : true;
+
+                if (!withinDuration) return '';
+
+                if (!row.budget) return '';
+
+                // prefer calendar year keys
+                let val = row.budget[year];
+                if (val === undefined) {
+                    // map numeric index keys (1,2,3...) to calendar years using startYear
+                    if (startYear) {
+                        const idx = yearNum - startYear + 1;
+                        if (idx >= 1 && row.budget[String(idx)] !== undefined) {
+                            val = row.budget[String(idx)];
+                        }
+                    }
+                }
+
+                if (val === undefined || val === null || val === '') return '';
+                const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : Number(val);
+                return isNaN(num) ? '' : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            },
             sortable: true,
         })),
-        { name: 'Total', selector: (row) => row.totalBudget, sortable: true, wrap: true, width: '140px' },
+        { name: 'Total', selector: (row) => {
+            const total = computeRowTotal(row);
+            return total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }, sortable: true, wrap: true, width: '140px' },
         {
             name: 'Remarks',
             selector: (row) => (
@@ -291,13 +582,52 @@ const Budgets = ({ data, sidebarExpanded }) => {
     const calculateYearlyTotals = (data) => {
         const totals = {};
 
+        // Initialize totals for allYears
+        allYears.forEach(y => totals[y] = 0);
+
         data.forEach(project => {
-            if (project.budget) {
-                Object.keys(project.budget).forEach(year => {
-                    const budgetValue = parseFloat(project.budget[year].replace(/,/g, ''));
-                    totals[year] = (totals[year] || 0) + budgetValue;
-                });
+            // determine project start year for numeric index mapping
+            let startYear;
+            if (project.changeStart || project.changeImplementationDate) {
+                startYear = new Date(project.changeStart || project.originalStart).getFullYear();
+            } else if (project.originalStart) {
+                startYear = new Date(project.originalStart).getFullYear();
             }
+
+            allYears.forEach(year => {
+                const yearNum = parseInt(year);
+                // only consider years within duration if start/end exist
+                let withinDuration = true;
+                if (project.changeStart || project.changeImplementationDate) {
+                    const s = new Date(project.changeStart || project.originalStart).getFullYear();
+                    const e = new Date(project.changeImplementationDate || project.originalEnd).getFullYear();
+                    withinDuration = yearNum >= s && yearNum <= e;
+                } else if (project.originalStart && project.originalEnd) {
+                    const s = new Date(project.originalStart).getFullYear();
+                    const e = new Date(project.originalEnd).getFullYear();
+                    withinDuration = yearNum >= s && yearNum <= e;
+                }
+
+                if (!withinDuration) return;
+
+                let value = 0;
+                if (project.budget) {
+                    // prefer calendar year keys
+                    if (project.budget[year] !== undefined) {
+                        value = parseFloat(String(project.budget[year]).replace(/,/g, '')) || 0;
+                    } else {
+                        // map numeric index keys (1,2,3...) to calendar years using startYear
+                        if (startYear) {
+                            const idx = yearNum - startYear + 1;
+                            if (idx >= 1 && project.budget[String(idx)] !== undefined) {
+                                value = parseFloat(String(project.budget[String(idx)]).replace(/,/g, '')) || 0;
+                            }
+                        }
+                    }
+                }
+
+                totals[year] = (totals[year] || 0) + value;
+            });
         });
 
         setYearlyTotals(totals);
@@ -305,13 +635,9 @@ const Budgets = ({ data, sidebarExpanded }) => {
 
     const calculateOverallTotal = () => {
         let overallTotal = 0;
-
         filteredData.forEach(project => {
-            if (project.totalBudget) {
-                overallTotal += parseFloat(project.totalBudget.replace(/,/g, ''));
-            }
+            overallTotal += computeRowTotal(project);
         });
-
         return overallTotal;
     };
 
@@ -357,12 +683,12 @@ const Budgets = ({ data, sidebarExpanded }) => {
     const overallTotal = calculateOverallTotal();
     
     return (
-        <article className='pt-5 pb-5 pe-5'>
+        <article className={`pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
             <div className="d-flex justify-content-between align-items-center">
                 <label className='h5 fw-semibold pt-2'>Budget Masterlist</label>
                 <div className="d-flex align-items-center">
                     <div className="me-4">
-                        {/* <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'relative', width: isMobile ? '160px' : '260px' }}>
                             <input
                                 type="text"
                                 className="form-control"
@@ -378,13 +704,12 @@ const Budgets = ({ data, sidebarExpanded }) => {
                                         top: '50%',
                                         right: '10px',
                                         transform: 'translateY(-50%)',
-                                        zIndex: '1',
+                                        zIndex: 1,
                                     }}
                                     onClick={() => setFilterValue('')}
-                                >
-                                </button>
+                                />
                             )}
-                        </div> */}
+                        </div>
                     </div>
                     <FilterBudgetModal
                         applyFilter={applyFilter}
@@ -407,21 +732,39 @@ const Budgets = ({ data, sidebarExpanded }) => {
                             <i className="fa-solid fa-file-excel fs-5"></i>
                         </button>
                     </div>
+                    <div className='sample me-3 importTooltip' style={{ borderRadius: '50px', padding: '7px 2px 2px 2px' }}>
+                        <Tooltip anchorSelect=".importTooltip" style={{ borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+                            Import from Excel
+                        </Tooltip>
+                        <input 
+                            type="file" 
+                            id="importBudgetsFile" 
+                            onChange={importFromExcel} 
+                            accept=".xlsx,.xls" 
+                            style={{ display: 'none' }} 
+                        />
+                        <button 
+                            type="button" 
+                            className="btn border-0 importTooltip" 
+                            onClick={() => document.getElementById('importBudgetsFile').click()}
+                            data-bs-toggle="tooltip" 
+                            data-bs-title="Import from Excel"
+                        >
+                            <i className="fa-solid fa-upload fs-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div className='row row-cols-lg-2 g-3 pt-4'>
-                {/* Total Projects */}
-                <div className='col-lg-3'>
-                    <div className='card radius-10 border'>
+            <div className='dashboard-summary-row pt-4'>
+                <div className='dashboard-summary-col'>
+                    <div className='card radius-10 border dashboard-summary-card'>
                         <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                            <div className='d-flex align-items-center'>
-                                <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                                </div>
-                                <div className='ps-4 text-truncate'>
-                                    <p className='mb-0 text-dark fs-5 fw-semibold'>{calculateOverallTotal().toLocaleString()}</p>
-                                    <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Budget Total</p>
-                                </div>
+                            <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                                <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                            </div>
+                            <div className='dashboard-summary-content'>
+                                <p className='mb-0 text-dark fs-4 fw-bold'>{calculateOverallTotal().toLocaleString()}</p>
+                                <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Budget Total</p>
                             </div>
                         </div>
                     </div>
@@ -434,8 +777,14 @@ const Budgets = ({ data, sidebarExpanded }) => {
                 responsive
                 highlightOnHover
                 striped
-                className='pt-5'
-                style={{ paddingLeft: sidebarExpanded ? '300px' : '150px', transition: 'padding-left 0.3s' }}
+                paginationPerPage={isMobile ? 5 : 10}
+                paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 25, 50]}
+                className={!isMobile ? 'pt-5' : ''}
+                style={{ 
+                    paddingLeft: !isMobile && sidebarExpanded ? (isTablet ? '250px' : '300px') : (isMobile ? '0px' : '150px'), 
+                    transition: 'padding-left 0.3s',
+                    fontSize: isMobile ? '12px' : '14px'
+                }}
             />
 
             <div className="">

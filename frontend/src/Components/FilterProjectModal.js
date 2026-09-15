@@ -8,7 +8,7 @@ const FilterProjectModal = ({ applyFilter, availableYears, availableISP }) => {
     const [responsiblePerson, setResponsiblePerson] = useState('');
     const [implementingAgency, setImplementingAgency] = useState('');
     const [funding, setFunding] = useState([]);
-    const [remarks, setRemarks] = useState([]);
+    const [status, setStatus] = useState([]);
 
     const handleISPChange = (e, ISP) => {
         // const selectedValue = e.target.textContent;
@@ -37,12 +37,8 @@ const FilterProjectModal = ({ applyFilter, availableYears, availableISP }) => {
             responsiblePerson,
             implementingAgency,
             funding,
-            remarks,
+            status,
         };
-
-        if (selectedYears) {
-            filterData.originalStart = selectedYears;
-        }
     
         applyFilter(filterData);
     };
@@ -55,21 +51,11 @@ const FilterProjectModal = ({ applyFilter, availableYears, availableISP }) => {
         }
 	};
 
-    const handleRemarksChange = (e, remarks) => {
+    const handleStatusChange = (e, statusValue) => {
         if (e.target.checked) {
-            setRemarks(prevSelectedYears => [...prevSelectedYears, remarks]);
+            setStatus(prevSelected => [...prevSelected, statusValue]);
         } else {
-            setRemarks(prevSelectedYears => prevSelectedYears.filter(y => y !== remarks));
-        }
-    } 
-
-    const [selectedYears, setSelectedYears] = useState([]);
-
-    const handleYearChange = (e, year) => {
-        if (e.target.checked) {
-            setSelectedYears(prevSelectedYears => [...prevSelectedYears, year]);
-        } else {
-            setSelectedYears(prevSelectedYears => prevSelectedYears.filter(y => y !== year));
+            setStatus(prevSelected => prevSelected.filter(y => y !== statusValue));
         }
     };
 
@@ -78,8 +64,7 @@ const FilterProjectModal = ({ applyFilter, availableYears, availableISP }) => {
         setResponsiblePerson('');
         setImplementingAgency('');
         setFunding([]);
-        setRemarks([]);
-        setSelectedYears([]);
+        setStatus([]);
     };
     
     return (
@@ -228,94 +213,37 @@ const FilterProjectModal = ({ applyFilter, availableYears, availableISP }) => {
 										</ul>
 									</div>
                                     <div className='col'>
-                                            <label className="pb-2">Remarks</label>
+                                            <label className="pb-2">Status</label>
                                             <input
                                                 className="form-control w-100 dropdown-toggle"
-                                                id="dropRemarksProject"
+                                                id="dropStatusProject"
                                                 data-bs-toggle="dropdown"
                                                 aria-haspopup="true"
                                                 aria-expanded="false"
-                                                value={remarks.join(', ')}
-                                                onChange={(e) => setRemarks(e.target.value)}
-                                                placeholder='Select Remarks'
+                                                value={status.join(', ')}
+                                                onChange={(e) => setStatus(e.target.value)}
+                                                placeholder='Select Status'
                                                 readOnly
                                             />
                                             <ul className="dropdown-menu dropdown-submenu p-2" style={{ marginTop: '-20px' }}>
-                                                {/* <li className="dropdown-item" onClick={handleRemarksChange}>New</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Ongoing</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Completed</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Terminated</li> */}
-                                                {['New', 'Ongoing', 'Completed', 'Terminated'].map((year) => (
-                                                <div key={year} className="form-check">
+                                                {['New', 'Ongoing', 'Completed', 'Terminated'].map((statusValue) => (
+                                                <div key={statusValue} className="form-check">
                                                     <input
                                                         className="form-check-input"
                                                         type="checkbox"
-                                                        id={`yearCheckbox-${year}`}
-                                                        value={year}
-                                                        checked={remarks.includes(year)}
-                                                        onChange={(e) => handleRemarksChange(e, year)}
+                                                        id={`statusCheckbox-${statusValue}`}
+                                                        value={statusValue}
+                                                        checked={status.includes(statusValue)}
+                                                        onChange={(e) => handleStatusChange(e, statusValue)}
                                                     />
-                                                    <label className="form-check-label" htmlFor={`yearCheckbox-${year}`}>
-                                                        {year}
+                                                    <label className="form-check-label" htmlFor={`statusCheckbox-${statusValue}`}>
+                                                        {statusValue}
                                                     </label>
                                                 </div>
                                                 ))}
                                             </ul>
                                         </div>
                                 </div>  
-                                <div className='row pt-3'>
-                                    <div className='col'>
-                                        <label className="pb-2">Year</label>
-                                        <input
-                                            className="form-control w-100 dropdown-toggle"
-                                            id="dropYear"
-                                            data-bs-toggle="dropdown"
-                                            aria-haspopup="true"
-                                            aria-expanded="false"
-                                            value={selectedYears.join(', ')}
-                                            onChange={(e) => setSelectedYears(e.target.value)}
-                                            placeholder='Select Year/s'
-                                            autoComplete='off'
-                                        />
-                                        <ul className="dropdown-menu dropdown-submenu p-2" style={{ marginTop: '-20px' }}>
-                                            {availableYears.map((year) => (
-                                                <div key={year} className="form-check">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        id={`yearCheckbox-${year}`}
-                                                        value={year}
-                                                        checked={selectedYears.includes(year)}
-                                                        onChange={(e) => handleYearChange(e, year)}
-                                                    />
-                                                    <label className="form-check-label" htmlFor={`yearCheckbox-${year}`}>
-                                                        {year}
-                                                    </label>
-                                                </div>
-                                            ))}
-                                        </ul>
-                                        {/* <div>
-                                            {availableYears.map((year) => (
-                                                <div key={year} className="form-check">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        id={`yearCheckbox-${year}`}
-                                                        value={year}
-                                                        checked={selectedYears.includes(year)}
-                                                        onChange={(e) => handleYearChange(e, year)}
-                                                    />
-                                                    <label className="form-check-label" htmlFor={`yearCheckbox-${year}`}>
-                                                        {year}
-                                                    </label>
-                                                </div>
-                                            ))}
-                                        </div> */}
-                                    </div>
-                                    <div className='col'></div>
-                                    <div className='col'></div>
-                                    <div className='col'></div>
-                                </div>
                             </div>
                             <div className="modal-footer border-0 d-grid d-md-flex justify-content-md-start">
                                 <div className='resetTooltip me-auto'>

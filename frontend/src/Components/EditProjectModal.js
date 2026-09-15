@@ -3,18 +3,40 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import CurrencyInput from 'react-currency-input-field';
 
+const remarkOptions = [
+    'No Terminal Report',
+    'No Financial Report',
+    'No Terminal and Financial Report',
+    'Executive Summary of Terminal Technical Accomplishment Report',
+    'Terminal Financial Report (FR)',
+    'Report of Disbursement (ROD) and Report of Checks Issued (RCI)',
+    'List of Equipment Purchased (LEP)',
+    'Property Acknowledgement Receipt (PAR)',
+    'Journal Entry Voucher (JEV) relative to the equipment purchased',
+    'List of Personnel Involved',
+    'Publishable or pre-print manuscript, as may be applicable',
+    'Appraisal/Assessment Report c/o the Monitoring Agency',
+    'Official Receipt/Validated LDDAP-ADA/Deposit Slip for reversion of Unexpended Balance',
+];
+
 const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showToastF }) => {
 
-    const [projectCode, setProjectCode] = useState('');
     const [ISP, setISP] = useState('');
+    const [projectCode, setProjectCode] = useState('');
+    const [programCode, setProgramCode] = useState('');
     const [programTitle, setProgramTitle] = useState('');
     const [projectTitle, setProjectTitle] = useState('');
     const [responsiblePerson, setResponsiblePerson] = useState('');
     const [funding, setFunding] = useState('');
+    const [region, setRegion] = useState('');
+    const [bannerProgram, setBannerProgram] = useState('');
+    const [pillar, setPillar] = useState('');
+    const [strategy, setStrategy] = useState('');
     const [budget, setBudget] = useState([]);
     const [totalBudget, setTotalBudget] = useState('');
     const [implementingAgency, setImplementingAgency] = useState('');
     const [programLeader, setProgramLeader] = useState('');
+    const [projectLeader, setProjectLeader] = useState('');
     const [emailAddress, setEmailAddress] = useState('');
     const [contactNumber, setContactNumber] = useState('');
     const [postalAddress, setPostalAddress] = useState('');
@@ -25,6 +47,10 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
     const [changeImplementationDate, setChangeImplementationDate] = useState('');
     const [firstExtension, setFirstExtension] = useState({ type: 'single', value: '' });
     const [secondExtension, setSecondExtension] = useState({ type: 'single', value: '' });
+    const [inceptionMeeting, setInceptionMeeting] = useState({ type: 'single', value: '', end: '' });
+    const [programReview, setProgramReview] = useState([{ type: 'single', value: '' }]);
+    const [terminalReview, setTerminalReview] = useState([{ type: 'single', value: '' }]);
+    const [submissionTerminal, setSubmissionTerminal] = useState('');
     const [objectives, setObjectives] = useState('');
     const [description, setDescription] = useState('');
     const [deliverables, setDeliverables] = useState('');
@@ -34,206 +60,242 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
     const [execomY1Approval, setExecomY1Approval] = useState('');
     const [dcY2Renewal, setDcY2Renewal] = useState('');
     const [gcY2Renewal, setGcY2Renewal] = useState('');
-    const [execomY2Renewal, setExecomY2Renewal] = useState('');
-    const [dcY3Renewal, setDcY3Renewal] = useState('');
-    const [gcY3Renewal, setGcY3Renewal] = useState('');
-    const [execomY3Renewal, setExecomY3Renewal] = useState('');
-    const [inceptionMeeting, setInceptionMeeting] = useState({ type: 'single', value: '' });
+    const [status, setStatus] = useState('');
+    const [remarks, setRemarks] = useState('');
+    const [tagging, setTagging] = useState('');
+    const [sixPs, setSixPs] = useState([]);
     const [mande, setMandE] = useState([{ type: 'single', value: '', comment: '' }]);
     const [y1BudgetRealignment, setY1BudgetRealignment] = useState([{ type: 'single', value: '' }]);
     const [y2BudgetRealignment, setY2BudgetRealignment] = useState([{ type: 'single', value: '' }]);
     const [y3BudgetRealignment, setY3BudgetRealignment] = useState([{ type: 'single', value: '' }]);
-    const [programReview, setProgramReview] = useState([{ type: 'single', value: '' }]);
-    const [terminalReview, setTerminalReview] = useState([{ type: 'single', value: '' }]);
-    const [status, setStatus] = useState('');
-    const [remarks, setRemarks] = useState('');
-    const [submissionTerminal, setSubmissionTerminal] = useState('');
-
-    //6Ps
-    const [sixPs, setSixPs] = useState([]);
-
     const [selectedYear, setSelectedYear] = useState('');
-
+    const handleYearChange = (e) => setSelectedYear(e.target.value);
     const [showToast, setShowToast] = useState(false);
-    const [showToastSuccess, setShowToastSuccess] = useState(false);
     const [toastTimeout, setToastTimeout] = useState(null);
+    const [execomY2Renewal, setExecomY2Renewal] = useState('');
+    const [dcY3Renewal, setDcY3Renewal] = useState('');
+    const [gcY3Renewal, setGcY3Renewal] = useState('');
+    const [execomY3Renewal, setExecomY3Renewal] = useState('');
+    const [publicationEntries, setPublicationEntries] = useState({});
+    const [productEntries, setProductEntries] = useState({});
+    const [patentEntries, setPatentEntries] = useState({});
+    const [peopleEntries, setPeopleEntries] = useState({});
+    const [placesEntries, setPlacesEntries] = useState({});
+    const [policyEntries, setPolicyEntries] = useState({});
 
-    const handleYearChange = (event) => {
-        const year = event.target.value;
-        setSelectedYear(year);
+    const toIsoDate = (date) => {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const parseDateForInput = (value) => {
+        if (value === null || value === undefined || value === '') return '';
+        if (value instanceof Date) return toIsoDate(value);
+
+        const text = String(value).trim();
+        if (!text) return '';
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+        const dmy = text.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/);
+        if (dmy) {
+            const first = Number(dmy[1]);
+            const second = Number(dmy[2]);
+            const year = Number(dmy[3]);
+
+            if (first > 12 && second <= 12) {
+                return toIsoDate(new Date(year, second - 1, first));
+            }
+
+            const date = new Date(year, first - 1, second);
+            if (!Number.isNaN(date.getTime())) return toIsoDate(date);
+
+            const altDate = new Date(year, second - 1, first);
+            if (!Number.isNaN(altDate.getTime())) return toIsoDate(altDate);
+        }
+
+        const ymd = text.match(/^(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})$/);
+        if (ymd) {
+            const year = Number(ymd[1]);
+            const month = Number(ymd[2]);
+            const day = Number(ymd[3]);
+            const date = new Date(year, month - 1, day);
+            if (!Number.isNaN(date.getTime())) return toIsoDate(date);
+        }
+
+        const parsed = new Date(text);
+        if (!Number.isNaN(parsed.getTime())) {
+            return toIsoDate(parsed);
+        }
+
+        return '';
     };
 
     useEffect(() => {
-        if (project && project.sixPSData) {
-            console.log(project)
-            setProjectCode(project.projectCode);
-            setISP(project.ISP);
-            setProgramTitle(project.programTitle);
-            setProjectTitle(project.projectTitle);
-            setResponsiblePerson(project.responsiblePerson);
-            setFunding(project.funding);
-            const budgetArray = project.budget ?
-                Object.keys(project.budget).map((year) => ({
-                    year: year,
-                    amount: parseFloat(project.budget[year].replace(/,/g, '')),
-                }))
-                : [];
-            setBudget(budgetArray);
-            setTotalBudget(project.totalBudget)
-            setImplementingAgency(project.implementingAgency);
-            setProgramLeader(project.programLeader);
-            setEmailAddress(project.emailAddress);
-            setContactNumber(project.contactNumber);
-            setPostalAddress(project.postalAddress);
-            setCooperatingAgency(project.cooperatingAgency);
-            setOriginalStart(project.originalStart);
-            setOriginalEnd(project.originalEnd);
-            setChangeStart(project.changeStart);
-            setChangeImplementationDate(project.changeImplementationDate);
-            const trimmedFirstExtension = project.firstExtension.trim();
-            let parsedFirstExtension;
+        if (!isEditModalOpen || !project) return;
 
-            if (trimmedFirstExtension.includes(' - ')) {
-                const [start, end] = trimmedFirstExtension.split(' - ');
-                parsedFirstExtension = { type: 'range', value: start, end };
-            } else {
-                parsedFirstExtension = { type: 'single', value: trimmedFirstExtension, end: '' };
+        const parseDateRangeValue = (value) => {
+            const trimmed = (value || '').trim();
+            if (!trimmed) return { type: 'single', value: '', end: '' };
+            if (trimmed.includes(' - ')) {
+                const [start, end] = trimmed.split(' - ').map(part => part.trim());
+                return { type: 'range', value: start, end };
             }
-            setFirstExtension(parsedFirstExtension);
-            const trimmedSecondExtension = project.secondExtension.trim();
-            let parsedSecondExtension;
+            return { type: 'single', value: trimmed, end: '' };
+        };
 
-            if (trimmedSecondExtension.includes(' - ')) {
-                const [start, end] = trimmedSecondExtension.split(' - ');
-                parsedSecondExtension = { type: 'range', value: start, end };
-            } else {
-                parsedSecondExtension = { type: 'single', value: trimmedSecondExtension, end: '' };
-            }
-            setSecondExtension(parsedSecondExtension);
-            setObjectives(project.objectives);
-            setDescription(project.description);
-            setDeliverables(project.deliverables);
-            setBeneficiaries(project.beneficiaries);
-            setDcY1Approval(project.dcY1Approval);
-            setGcY1Approval(project.gcY1Approval);
-            setExecomY1Approval(project.execomY1Approval);
-            setDcY2Renewal(project.dcY2Renewal);
-            setGcY2Renewal(project.gcY2Renewal);
-            setExecomY2Renewal(project.execomY2Renewal);
-            setDcY3Renewal(project.dcY3Renewal);
-            setGcY3Renewal(project.gcY3Renewal);
-            setExecomY3Renewal(project.execomY3Renewal);
-            const trimmedInception = project.inceptionMeeting.trim();
-            let parsedInception;
+        setISP(project.ISP || '');
+        setProjectCode(project.projectCode || '');
+        setProgramCode(project.programCode || '');
+        setProgramTitle(project.programTitle || '');
+        setProjectTitle(project.projectTitle || '');
+        setResponsiblePerson(project.responsiblePerson || '');
+        setFunding(project.funding || '');
+        setImplementingAgency(project.implementingAgency || '');
+        setProgramLeader(project.programLeader || '');
+        setProjectLeader(project.projectLeader || '');
+        setEmailAddress(project.emailAddress || '');
+        setContactNumber(project.contactNumber || '');
+        setPostalAddress(project.postalAddress || '');
+        setCooperatingAgency(project.cooperatingAgency || '');
+        setOriginalStart(parseDateForInput(project.originalStart || ''));
+        setOriginalEnd(parseDateForInput(project.originalEnd || ''));
+        setChangeStart(parseDateForInput(project.changeStart || ''));
+        setChangeImplementationDate(parseDateForInput(project.changeImplementationDate || ''));
+        setFirstExtension(parseDateRangeValue(project.firstExtension || ''));
+        setSecondExtension(parseDateRangeValue(project.secondExtension || ''));
+        setObjectives(project.objectives || '');
+        setDescription(project.description || '');
+        setDeliverables(project.deliverables || '');
+        setBeneficiaries(project.beneficiaries || '');
+        setDcY1Approval(parseDateForInput(project.dcY1Approval || ''));
+        setGcY1Approval(parseDateForInput(project.gcY1Approval || ''));
+        setExecomY1Approval(parseDateForInput(project.execomY1Approval || ''));
+        setDcY2Renewal(parseDateForInput(project.dcY2Renewal || ''));
+        setGcY2Renewal(parseDateForInput(project.gcY2Renewal || ''));
+        setExecomY2Renewal(parseDateForInput(project.execomY2Renewal || ''));
+        setDcY3Renewal(parseDateForInput(project.dcY3Renewal || ''));
+        setGcY3Renewal(parseDateForInput(project.gcY3Renewal || ''));
+        setExecomY3Renewal(parseDateForInput(project.execomY3Renewal || ''));
+        setSubmissionTerminal(project.submissionTerminal || '');
+        setStatus(project.status || '');
+        setRemarks(project.remarks || '');
+        setTagging(project.tagging || '');
+        setRegion(project.region || '');
+        setBannerProgram(project.bannerProgram || '');
+        setPillar(project.pillar || '');
+        setStrategy(project.strategy || '');
 
-            if (trimmedInception.includes(' - ')) {
-                const [start, end] = trimmedInception.split(' - ');
-                parsedInception = { type: 'range', value: start, end };
-            } else {
-                parsedInception = { type: 'single', value: trimmedInception, end: '' };
-            }
-            setInceptionMeeting(parsedInception);
-            const parsedMandE = project.mande.split(',').map(entry => {
-                const [datePart, commentPart] = entry.split('(').map(part => part.trim());
-                const comment = commentPart ? commentPart.slice(0, -1) : ''; // Remove the closing parenthesis
-                if (datePart.includes(' - ')) {
-                    const [start, end] = datePart.split(' - ').map(d => d.trim());
-                    return { type: 'range', value: start, end, comment };
-                } else {
-                    return { type: 'single', value: datePart, end: '', comment };
-                }
-            });
-            setMandE(parsedMandE);
-            const parsedY1Budget = project.y1BudgetRealignment.split(',').map(date => {
-                const trimmedDate = date.trim();
-                if (trimmedDate.includes(' - ')) {
-                    const [start, end] = trimmedDate.split(' - ');
-                    return { type: 'range', value: start, end };
-                } else {
-                    return { type: 'single', value: trimmedDate, end: '' };
-                }
-            });
-            setY1BudgetRealignment(parsedY1Budget);
-            const parsedY2Budget = project.y2BudgetRealignment.split(',').map(date => {
-                const trimmedDate = date.trim();
-                if (trimmedDate.includes(' - ')) {
-                    const [start, end] = trimmedDate.split(' - ');
-                    return { type: 'range', value: start, end };
-                } else {
-                    return { type: 'single', value: trimmedDate, end: '' };
-                }
-            });
-            setY2BudgetRealignment(parsedY2Budget);
-            const parsedY3Budget = project.y3BudgetRealignment.split(',').map(date => {
-                const trimmedDate = date.trim();
-                if (trimmedDate.includes(' - ')) {
-                    const [start, end] = trimmedDate.split(' - ');
-                    return { type: 'range', value: start, end };
-                } else {
-                    return { type: 'single', value: trimmedDate, end: '' };
-                }
-            });
-            setY3BudgetRealignment(parsedY3Budget);
-            const parsedPReview = project.programReview.split(',').map(date => {
-                const trimmedDate = date.trim();
-                if (trimmedDate.includes(' - ')) {
-                    const [start, end] = trimmedDate.split(' - ');
-                    return { type: 'range', value: start, end };
-                } else {
-                    return { type: 'single', value: trimmedDate, end: '' };
-                }
-            });
-            setProgramReview(parsedPReview);
-            const parsedTReview = project.terminalReview.split(',').map(date => {
-                const trimmedDate = date.trim();
-                if (trimmedDate.includes(' - ')) {
-                    const [start, end] = trimmedDate.split(' - ');
-                    return { type: 'range', value: start, end };
-                } else {
-                    return { type: 'single', value: trimmedDate, end: '' };
-                }
-            });
-            setTerminalReview(parsedTReview);
-            setSubmissionTerminal(project.submissionTerminal);
-            setStatus(project.status);
-            setRemarks(project.remarks);
+        const budgetArray = project.budgetArray || (project.budget && typeof project.budget === 'object'
+            ? Object.entries(project.budget).map(([year, amount]) => {
+                const parsedAmount = typeof amount === 'string' 
+                    ? Number(String(amount).replace(/,/g, '')) || 0
+                    : Number(amount) || 0;
+                return {
+                    year: Number(year),
+                    amount: parsedAmount,
+                };
+            })
+            : []);
+        setBudget(budgetArray);
 
-            const sixPsArray = project.sixPs
-                ? Object.keys(project.sixPs).map((year) => ({
-                    year: year,
-                    targetPublication: project.sixPs[year].targetPublication,
-                    actualaccomplishmentPeer: project.sixPs[year].actualaccomplishmentPeer,
-                    actualaccomplishmentJournal: project.sixPs[year].actualaccomplishmentJournal,
-                    actualaccomplishmentPresented: project.sixPs[year].actualaccomplishmentPresented,
-                    details: project.sixPs[year].details,
-                    actualaccomplishmentIEC: project.sixPs[year].actualaccomplishmentIEC,
-                    targetProduct: project.sixPs[year].targetProduct,
-                    techName: project.sixPs[year].techName,
-                    techDescription: project.sixPs[year].techDescription,
-                    targetPatent: project.sixPs[year].targetPatent,
-                    agency: project.sixPs[year].agency,
-                    techNamePro: project.sixPs[year].techNamePro,
-                    statusSix: project.sixPs[year].statusSix,
-                    dost: project.sixPs[year].dost,
-                    patentNumber: project.sixPs[year].patentNumber,
-                    targetPeople: project.sixPs[year].targetPeople,
-                    namesBS: project.sixPs[year].namesBS,
-                    namesMS: project.sixPs[year].namesMS,
-                    namesPhD: project.sixPs[year].namesPhD,
-                    targetPlaces: project.sixPs[year].targetPlaces,
-                    cooperators: project.sixPs[year].cooperators,
-                    international: project.sixPs[year].international,
-                    privateSixPS: project.sixPs[year].privateSixPS,
-                    targetPolicy: project.sixPs[year].targetPolicy,
-                    policyRecommendation: project.sixPs[year].policyRecommendation,
-                }))
-                : [];
-            console.log(sixPsArray)
-            console.log(project.sixPs)
-            setSixPs(sixPsArray);
-
+        const trimmedInception = (project.inceptionMeeting || '').trim();
+        let parsedInception;
+        if (trimmedInception.includes(' - ')) {
+            const [start, end] = trimmedInception.split(' - ');
+            parsedInception = { type: 'range', value: start, end };
+        } else {
+            parsedInception = { type: 'single', value: trimmedInception, end: '' };
         }
-    }, [project]);
+        setInceptionMeeting(parsedInception);
+
+        const parsedPReview = (project.programReview || '').split(',').filter(date => date.trim()).map(date => {
+            const trimmedDate = date.trim();
+            if (trimmedDate.includes(' - ')) {
+                const [start, end] = trimmedDate.split(' - ');
+                return { type: 'range', value: start, end };
+            }
+            return { type: 'single', value: trimmedDate, end: '' };
+        });
+        setProgramReview(parsedPReview.length > 0 ? parsedPReview : [{ type: 'single', value: '' }]);
+
+        const parsedTReview = (project.terminalReview || '').split(',').filter(date => date.trim()).map(date => {
+            const trimmedDate = date.trim();
+            if (trimmedDate.includes(' - ')) {
+                const [start, end] = trimmedDate.split(' - ');
+                return { type: 'range', value: start, end };
+            }
+            return { type: 'single', value: trimmedDate, end: '' };
+        });
+        setTerminalReview(parsedTReview.length > 0 ? parsedTReview : [{ type: 'single', value: '' }]);
+
+        const sixPsArray = project.sixPs
+            ? Object.keys(project.sixPs).map((key) => {
+                const sixPsItem = project.sixPs[key];
+                const yearValue = (sixPsItem.year !== null && sixPsItem.year !== undefined && sixPsItem.year !== '') ? sixPsItem.year : key;
+                return {
+                    year: yearValue,
+                    targetPublication: sixPsItem.targetPublication,
+                    actualaccomplishmentPeer: sixPsItem.actualaccomplishmentPeer,
+                    actualaccomplishmentJournal: sixPsItem.actualaccomplishmentJournal,
+                    actualaccomplishmentPresented: sixPsItem.actualaccomplishmentPresented,
+                    details: sixPsItem.details,
+                    actualaccomplishmentIEC: sixPsItem.actualaccomplishmentIEC,
+                    targetProduct: sixPsItem.targetProduct,
+                    techName: sixPsItem.techName,
+                    techDescription: sixPsItem.techDescription,
+                    targetPatent: sixPsItem.targetPatent,
+                    agency: sixPsItem.agency,
+                    techNamePro: sixPsItem.techNamePro,
+                    statusSix: sixPsItem.statusSix,
+                    dost: sixPsItem.dost,
+                    patentNumber: sixPsItem.patentNumber,
+                    targetPeople: sixPsItem.targetPeople,
+                    namesBS: sixPsItem.namesBS,
+                    namesMS: sixPsItem.namesMS,
+                    namesPhD: sixPsItem.namesPhD,
+                    targetPlaces: sixPsItem.targetPlaces,
+                    cooperators: sixPsItem.cooperators,
+                    international: sixPsItem.international,
+                    privateSixPS: sixPsItem.privateSixPS,
+                    targetPolicy: sixPsItem.targetPolicy,
+                    policyRecommendation: sixPsItem.policyRecommendation,
+                };
+            })
+            .filter(item => {
+                const yearNum = parseInt(item.year);
+                const isNumericIndex = !isNaN(yearNum) && yearNum < 100;
+                return item.year && item.year !== '0' && item.year !== 0 && !isNumericIndex;
+            })
+            : [];
+        setSixPs(sixPsArray);
+
+        const pubEntries = {};
+        const prodEntries = {};
+        const patEntries = {};
+        const peopleEnt = {};
+        const placesEnt = {};
+        const policyEnt = {};
+
+        sixPsArray.forEach(item => {
+            pubEntries[item.year] = [{ target: item.targetPublication, actual: item.actualaccomplishmentPeer }];
+            prodEntries[item.year] = [{ target: item.targetProduct, actual: item.techName }];
+            patEntries[item.year] = [{ target: item.targetPatent, actual: item.techNamePro }];
+            peopleEnt[item.year] = [{ target: item.targetPeople, actual: item.namesBS }];
+            placesEnt[item.year] = [{ target: item.targetPlaces, actual: item.cooperators }];
+            policyEnt[item.year] = [{ target: item.targetPolicy, actual: item.policyRecommendation }];
+        });
+
+        setPublicationEntries(pubEntries);
+        setProductEntries(prodEntries);
+        setPatentEntries(patEntries);
+        setPeopleEntries(peopleEnt);
+        setPlacesEntries(placesEnt);
+        setPolicyEntries(policyEnt);
+    }, [isEditModalOpen, project]);
 
     const handleMandEChange = (index, field, value, type) => {
         const newDates = [...mande];
@@ -263,20 +325,6 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
         setY3BudgetRealignment(newDates);
     };
 
-    const handleProgramReviewChange = (index, field, value, type) => {
-        const newDates = [...programReview];
-        newDates[index][field] = value;
-        newDates[index].type = type;
-        setProgramReview(newDates);
-    };
-
-    const handleTerminalReviewChange = (index, field, value, type) => {
-        const newDates = [...terminalReview];
-        newDates[index][field] = value;
-        newDates[index].type = type;
-        setTerminalReview(newDates);
-    };
-
     const handleFirstExtensionChange = (field, value) => {
         setFirstExtension({ ...firstExtension, [field]: value });
     };
@@ -287,6 +335,40 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
 
     const handleInceptionChange = (field, value) => {
         setInceptionMeeting({ ...inceptionMeeting, [field]: value });
+    };
+
+    const handleProgramReviewChange = (index, field, value, type) => {
+        const newDates = [...programReview];
+        newDates[index][field] = value;
+        if (type) newDates[index].type = type;
+        setProgramReview(newDates);
+    };
+
+    const handleTerminalReviewChange = (index, field, value, type) => {
+        const newDates = [...terminalReview];
+        newDates[index][field] = value;
+        if (type) newDates[index].type = type;
+        setTerminalReview(newDates);
+    };
+
+    const handleRemovePReview = (index) => {
+        const newDates = [...programReview];
+        newDates.splice(index, 1);
+        setProgramReview(newDates);
+    };
+
+    const handleAddPReview = () => {
+        setProgramReview([...programReview, { type: 'single', value: '' }]);
+    };
+
+    const handleRemoveTReview = (index) => {
+        const newDates = [...terminalReview];
+        newDates.splice(index, 1);
+        setTerminalReview(newDates);
+    };
+
+    const handleAddTReview = () => {
+        setTerminalReview([...terminalReview, { type: 'single', value: '' }]);
     };
 
     const handleRemoveMandE = (index) => {
@@ -329,24 +411,130 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
         setY3BudgetRealignment([...y3BudgetRealignment, { type: 'single', value: '' }]);
     };
 
-    const handleRemovePReview = (index) => {
-        const newDates = [...programReview];
-        newDates.splice(index, 1);
-        setProgramReview(newDates);
+    const handleAddPublicationEntry = (year) => {
+        const newEntries = { ...publicationEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setPublicationEntries(newEntries);
     };
 
-    const handleAddPReview = () => {
-        setProgramReview([...programReview, { type: 'single', value: '' }]);
+    const handleRemovePublicationEntry = (year, index) => {
+        const newEntries = { ...publicationEntries };
+        newEntries[year].splice(index, 1);
+        setPublicationEntries(newEntries);
     };
 
-    const handleRemoveTReview = (index) => {
-        const newDates = [...terminalReview];
-        newDates.splice(index, 1);
-        setTerminalReview(newDates);
+    const handlePublicationEntryChange = (year, index, field, value) => {
+        const newEntries = { ...publicationEntries };
+        newEntries[year][index][field] = value;
+        setPublicationEntries(newEntries);
     };
 
-    const handleAddTReview = () => {
-        setTerminalReview([...terminalReview, { type: 'single', value: '' }]);
+    const handleAddProductEntry = (year) => {
+        const newEntries = { ...productEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setProductEntries(newEntries);
+    };
+
+    const handleRemoveProductEntry = (year, index) => {
+        const newEntries = { ...productEntries };
+        newEntries[year].splice(index, 1);
+        setProductEntries(newEntries);
+    };
+
+    const handleProductEntryChange = (year, index, field, value) => {
+        const newEntries = { ...productEntries };
+        newEntries[year][index][field] = value;
+        setProductEntries(newEntries);
+    };
+
+    const handleAddPatentEntry = (year) => {
+        const newEntries = { ...patentEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setPatentEntries(newEntries);
+    };
+
+    const handleRemovePatentEntry = (year, index) => {
+        const newEntries = { ...patentEntries };
+        newEntries[year].splice(index, 1);
+        setPatentEntries(newEntries);
+    };
+
+    const handlePatentEntryChange = (year, index, field, value) => {
+        const newEntries = { ...patentEntries };
+        newEntries[year][index][field] = value;
+        setPatentEntries(newEntries);
+    };
+
+    const handleAddPeopleEntry = (year) => {
+        const newEntries = { ...peopleEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setPeopleEntries(newEntries);
+    };
+
+    const handleRemovePeopleEntry = (year, index) => {
+        const newEntries = { ...peopleEntries };
+        newEntries[year].splice(index, 1);
+        setPeopleEntries(newEntries);
+    };
+
+    const handlePeopleEntryChange = (year, index, field, value) => {
+        const newEntries = { ...peopleEntries };
+        newEntries[year][index][field] = value;
+        setPeopleEntries(newEntries);
+    };
+
+    const handleAddPlacesEntry = (year) => {
+        const newEntries = { ...placesEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setPlacesEntries(newEntries);
+    };
+
+    const handleRemovePlacesEntry = (year, index) => {
+        const newEntries = { ...placesEntries };
+        newEntries[year].splice(index, 1);
+        setPlacesEntries(newEntries);
+    };
+
+    const handlePlacesEntryChange = (year, index, field, value) => {
+        const newEntries = { ...placesEntries };
+        newEntries[year][index][field] = value;
+        setPlacesEntries(newEntries);
+    };
+
+    const handleAddPolicyEntry = (year) => {
+        const newEntries = { ...policyEntries };
+        if (!newEntries[year]) {
+            newEntries[year] = [];
+        }
+        newEntries[year].push({ target: '', actual: '' });
+        setPolicyEntries(newEntries);
+    };
+
+    const handleRemovePolicyEntry = (year, index) => {
+        const newEntries = { ...policyEntries };
+        newEntries[year].splice(index, 1);
+        setPolicyEntries(newEntries);
+    };
+
+    const handlePolicyEntryChange = (year, index, field, value) => {
+        const newEntries = { ...policyEntries };
+        newEntries[year][index][field] = value;
+        setPolicyEntries(newEntries);
     };
 
     const updateProject = async (e) => {
@@ -383,6 +571,8 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
 
         const isChanged =
             ISP !== project.ISP ||
+            projectCode !== project.projectCode ||
+            programCode !== project.programCode ||
             programTitle !== project.programTitle ||
             projectTitle !== project.projectTitle ||
             responsiblePerson !== project.responsiblePerson ||
@@ -391,6 +581,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
             isTotalBudgetChanged ||
             implementingAgency !== project.implementingAgency ||
             programLeader !== project.programLeader ||
+            projectLeader !== project.projectLeader ||
             emailAddress !== project.emailAddress ||
             contactNumber !== project.contactNumber ||
             postalAddress !== project.postalAddress ||
@@ -402,6 +593,11 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
             formattedFirstExtension !== project.firstExtension ||
             formattedSecondExtension !== project.secondExtension ||
             objectives !== project.objectives ||
+            formattedInception !== project.inceptionMeeting ||
+            formattedPReview !== project.programReview ||
+            formattedTReview !== project.terminalReview ||
+            submissionTerminal !== project.submissionTerminal ||
+            region !== project.region ||
             description !== project.description ||
             deliverables !== project.deliverables ||
             beneficiaries !== project.beneficiaries ||
@@ -414,16 +610,16 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
             dcY3Renewal !== project.dcY3Renewal ||
             gcY3Renewal !== project.gcY3Renewal ||
             execomY3Renewal !== project.execomY3Renewal ||
-            formattedInception !== project.inceptionMeeting ||
             formattedMandE !== project.mande ||
             formattedY1Budget !== project.y1BudgetRealignment ||
             formattedY2Budget !== project.y2BudgetRealignment ||
             formattedY3Budget !== project.y3BudgetRealignment ||
-            formattedPReview !== project.programReview ||
-            formattedTReview !== project.terminalReview ||
-            submissionTerminal !== project.submissionTerminal ||
             status !== project.status ||
             remarks !== project.remarks ||
+            tagging !== project.tagging ||
+            bannerProgram !== project.bannerProgram ||
+            pillar !== project.pillar ||
+            strategy !== project.strategy ||
             isSixPsChanged;
             // isFileChanged ||
 
@@ -442,7 +638,9 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
         try {
             await axios.patch(`http://localhost:8080/Projects/${project.id}`, {
                 ISP: ISP,
+                programCode: programCode,
                 programTitle: programTitle,
+                projectCode: projectCode,
                 projectTitle: projectTitle,
                 responsiblePerson: responsiblePerson,
                 funding: funding,
@@ -450,6 +648,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                 totalBudget: totalBudget,
                 implementingAgency: implementingAgency,
                 programLeader: programLeader,
+                projectLeader: projectLeader,
                 emailAddress: emailAddress,
                 contactNumber: contactNumber,
                 postalAddress: postalAddress,
@@ -464,6 +663,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                 description: description,
                 deliverables: deliverables,
                 beneficiaries: beneficiaries,
+                region: region,
                 dcY1Approval: dcY1Approval,
                 gcY1Approval: gcY1Approval,
                 execomY1Approval: execomY1Approval,
@@ -473,47 +673,56 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                 dcY3Renewal: dcY3Renewal,
                 gcY3Renewal: gcY3Renewal,
                 execomY3Renewal: execomY3Renewal,
-                inceptionMeeting: formattedInception,
                 mande: formattedMandE,
                 y1BudgetRealignment: formattedY1Budget,
                 y2BudgetRealignment: formattedY2Budget,
                 y3BudgetRealignment: formattedY3Budget,
-                programReview: formattedPReview,
-                terminalReview: formattedTReview,
-                submissionTerminal: submissionTerminal,
                 status: status,
+                bannerProgram: bannerProgram,
+                pillar: pillar,
+                strategy: strategy,
+                tagging: tagging,
                 remarks: remarks,
             });
 
             await axios.patch(`http://localhost:8080/SixPS/${project.id}`, {
-                sixPs: sixPs.map(item => ({
-                    year: item.year,
-                    targetPublication: item.targetPublication,
-                    actualaccomplishmentPeer: item.actualaccomplishmentPeer,
-                    actualaccomplishmentJournal: item.actualaccomplishmentJournal,
-                    actualaccomplishmentPresented: item.actualaccomplishmentPresented,
-                    details: item.details,
-                    actualaccomplishmentIEC: item.actualaccomplishmentIEC,
-                    targetProduct: item.targetProduct,
-                    techName: item.techName,
-                    techDescription: item.techDescription,
-                    targetPatent: item.targetPatent,
-                    agency: item.agency,
-                    techNamePro: item.techNamePro,
-                    statusSix: item.statusSix,
-                    dost: item.dost,
-                    patentNumber: item.patentNumber,
-                    targetPeople: item.targetPeople,
-                    namesBS: item.namesBS,
-                    namesMS: item.namesMS,
-                    namesPhD: item.namesPhD,
-                    targetPlaces: item.targetPlaces,
-                    cooperators: item.cooperators,
-                    international: item.international,
-                    privateSixPS: item.privateSixPS,
-                    targetPolicy: item.targetPolicy,
-                    policyRecommendation: item.policyRecommendation,
-                })),
+                sixPs: sixPs.map(item => {
+                    const pubEntry = publicationEntries[item.year] ? publicationEntries[item.year][0] : null;
+                    const prodEntry = productEntries[item.year] ? productEntries[item.year][0] : null;
+                    const patEntry = patentEntries[item.year] ? patentEntries[item.year][0] : null;
+                    const peopleEntry = peopleEntries[item.year] ? peopleEntries[item.year][0] : null;
+                    const placesEntry = placesEntries[item.year] ? placesEntries[item.year][0] : null;
+                    const policyEntry = policyEntries[item.year] ? policyEntries[item.year][0] : null;
+                    
+                    return {
+                        year: item.year,
+                        targetPublication: pubEntry ? pubEntry.target : item.targetPublication,
+                        actualaccomplishmentPeer: pubEntry ? pubEntry.actual : item.actualaccomplishmentPeer,
+                        actualaccomplishmentJournal: item.actualaccomplishmentJournal,
+                        actualaccomplishmentPresented: item.actualaccomplishmentPresented,
+                        details: item.details,
+                        actualaccomplishmentIEC: item.actualaccomplishmentIEC,
+                        targetProduct: prodEntry ? prodEntry.target : item.targetProduct,
+                        techName: prodEntry ? prodEntry.actual : item.techName,
+                        techDescription: item.techDescription,
+                        targetPatent: patEntry ? patEntry.target : item.targetPatent,
+                        agency: item.agency,
+                        techNamePro: patEntry ? patEntry.actual : item.techNamePro,
+                        statusSix: item.statusSix,
+                        dost: item.dost,
+                        patentNumber: item.patentNumber,
+                        targetPeople: peopleEntry ? peopleEntry.target : item.targetPeople,
+                        namesBS: peopleEntry ? peopleEntry.actual : item.namesBS,
+                        namesMS: item.namesMS,
+                        namesPhD: item.namesPhD,
+                        targetPlaces: placesEntry ? placesEntry.target : item.targetPlaces,
+                        cooperators: placesEntry ? placesEntry.actual : item.cooperators,
+                        international: item.international,
+                        privateSixPS: item.privateSixPS,
+                        targetPolicy: policyEntry ? policyEntry.target : item.targetPolicy,
+                        policyRecommendation: policyEntry ? policyEntry.actual : item.policyRecommendation,
+                    };
+                }),
             });
 
             console.log('Project updated successfully');
@@ -526,16 +735,51 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
     };
 
     const generateFields = () => {
-        const startYear = new Date(project.originalStart).getFullYear();
-        const endYear = new Date(project.originalEnd).getFullYear();
-        const years = endYear - startYear + 1;
+        // Handle imported projects that might not have start/end dates
+        if (!project.originalStart || !project.originalEnd) {
+            alert('Please set Original Start and Original End dates first');
+            return;
+        }
 
-        const newSixPsData = Array.from({ length: years }, (_, index) => {
-            const year = startYear + index;
-            return { year, targetPublication: '', actualAccomplishmentPeer: '', actualAccomplishmentJournal: '', actualAccomplishmentPresented: '', details: '', actualAccomplishmentIEC: '', targetProduct: '', techName: '', techDescription: '', targetPatent: '', agency: '', techNamePro: '', statusSix: '', dost: '', patentNumber: '', targetPeople: '', namesBS: '', namesMS: '', namesPhD: '', targetPlaces: '', cooperators: '', international: '', privateSixPS: '', targetPolicy: '', policyRecommendation: '' };
-        });
+        try {
+            const startYear = new Date(project.originalStart).getFullYear();
+            const endYear = new Date(project.originalEnd).getFullYear();
+            const years = endYear - startYear + 1;
 
-        setSixPs(newSixPsData);
+            const newSixPsData = Array.from({ length: years }, (_, index) => {
+                const year = startYear + index;
+                return { year: year.toString(), targetPublication: '', actualaccomplishmentPeer: '', actualaccomplishmentJournal: '', actualaccomplishmentPresented: '', details: '', actualaccomplishmentIEC: '', targetProduct: '', techName: '', techDescription: '', targetPatent: '', agency: '', techNamePro: '', statusSix: '', dost: '', patentNumber: '', targetPeople: '', namesBS: '', namesMS: '', namesPhD: '', targetPlaces: '', cooperators: '', international: '', privateSixPS: '', targetPolicy: '', policyRecommendation: '' };
+            });
+
+            setSixPs(newSixPsData);
+            
+            // Initialize all entries
+            const pubEntries = {};
+            const prodEntries = {};
+            const patEntries = {};
+            const peopleEnt = {};
+            const placesEnt = {};
+            const policyEnt = {};
+            
+            newSixPsData.forEach(item => {
+                pubEntries[item.year] = [{ target: '', actual: '' }];
+                prodEntries[item.year] = [{ target: '', actual: '' }];
+                patEntries[item.year] = [{ target: '', actual: '' }];
+                peopleEnt[item.year] = [{ target: '', actual: '' }];
+                placesEnt[item.year] = [{ target: '', actual: '' }];
+                policyEnt[item.year] = [{ target: '', actual: '' }];
+            });
+            
+            setPublicationEntries(pubEntries);
+            setProductEntries(prodEntries);
+            setPatentEntries(patEntries);
+            setPeopleEntries(peopleEnt);
+            setPlacesEntries(placesEnt);
+            setPolicyEntries(policyEnt);
+        } catch (error) {
+            alert('Error generating fields. Please check the start and end dates.');
+            console.error(error);
+        }
     };
 
     const handleFieldChange = (index, field, value) => {
@@ -573,6 +817,15 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
     const handleRemarksChange = (e) => {
         setRemarks(e.target.innerText);
     }
+
+    const handleRemarkCheckboxChange = (remark) => {
+        const selectedRemarks = remarks ? remarks.split(' | ') : [];
+        const updatedRemarks = selectedRemarks.includes(remark)
+            ? selectedRemarks.filter((selectedRemark) => selectedRemark !== remark)
+            : [...selectedRemarks, remark];
+
+        setRemarks(updatedRemarks.join(' | '));
+    };
 
     // const handleDOSTChange = (e) => {
     //     setDOST(e.target.innerText);
@@ -615,7 +868,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
         calculateTotalBudget();
     }, [budget]);
 
-    if (!isEditModalOpen) {
+    if (!isEditModalOpen || !project) {
         return null;
     }
 
@@ -646,11 +899,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                 <div className='container border p-4 mt-3 rounded'>
                                     <h5><b>Project Details</b></h5>
                                     <div className="row pt-3">
-                                        <div className="col">
-                                            <label className="pb-2">Project Code</label>
-                                            <input type="text" className="form-control" value={projectCode} onChange={(e) => setProjectCode(e.target.value)} readOnly/>
-                                        </div>
-                                        <div className='col'>
+                                        <div className='col-md-4'>
                                             <label className="pb-2">ISP</label>
                                             <input
                                                 className="form-control dropdown-toggle"
@@ -695,6 +944,26 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                                     </ul>
                                                 </li>
                                             </ul>
+                                        </div>
+                                        <div className='col-md-4'>
+                                            <label className="pb-2">PALIHAN Code(project)</label>
+                                            <input
+                                                className="form-control"
+                                                type="text"
+                                                value={projectCode}
+                                                onChange={(e) => setProjectCode(e.target.value)}
+                                                placeholder='Enter PALIHAN Code(project)'
+                                            />
+                                        </div>
+                                        <div className='col-md-4'>
+                                            <label className="pb-2">PALIHAN Code(program)</label>
+                                            <input
+                                                className="form-control"
+                                                type="text"
+                                                value={programCode}
+                                                onChange={(e) => setProgramCode(e.target.value)}
+                                                placeholder='Enter PALIHAN Code(program)'
+                                            />
                                         </div>
                                     </div>
                                     <div className="row pt-3">
@@ -769,11 +1038,13 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                             <label className="pb-2">Implementing Agency</label>
                                             <input type="text" className="form-control" value={implementingAgency} onChange={(e) => setImplementingAgency(e.target.value)} />
                                         </div>
-                                        <div className='col'>
-                                            <div className="col">
-                                                <label className="pb-2">Program/Project Leader</label>
-                                                <input type="text" className="form-control" value={programLeader} onChange={(e) => setProgramLeader(e.target.value)} />
-                                            </div>
+                                        <div className="col">
+                                            <label className="pb-2">Program Leader</label>
+                                            <input type="text" className="form-control" value={programLeader} onChange={(e) => setProgramLeader(e.target.value)} />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Project Leader</label>
+                                            <input type="text" className="form-control" value={projectLeader} onChange={(e) => setProjectLeader(e.target.value)} />
                                         </div>
                                     </div>
                                     <div className="row pt-3">
@@ -783,7 +1054,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                         </div>
                                         <div className="col">
                                             <label className="pb-2">Contact Number</label>
-                                            <input type="number" className="form-control" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
+                                            <input type="text" className="form-control" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
                                         </div>
                                         <div className="col">
                                             <label className="pb-2">Postal Address</label>
@@ -812,24 +1083,59 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                             <textarea type="text" className="form-control" value={beneficiaries} onChange={(e) => setBeneficiaries(e.target.value)} />
                                         </div>
                                     </div>
+                                    <div className="row pt-3">
+                                        <div className="col">
+                                            <label className="pb-2">Region</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropRegionEdit"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={region}
+                                                onChange={(e) => setRegion(e.target.value)}
+                                                placeholder='Select Region'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropRegionEdit">
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region I (Ilocos Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region II (Cagayan Valley)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region III (Central Luzon)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IV-A (CALABARZON)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IV-B (MIMAROPA)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region V (Bicol Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VI (Western Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VII (Central Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VIII (Eastern Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IX (Zamboanga Peninsula)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region X (Northern Mindanao)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XI (Davao Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XII (SOCCSKSARGEN)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>National Capital Region (NCR)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Cordillera Administrative Region (CAR)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Autonomous Region in Muslim Mindanao (ARMM)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XIII (Caraga)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className='container border p-4 mt-3 rounded'>
                                     <h5><b>Project Duration</b></h5>
                                     <div className="row pt-3">
                                         <div className='col'>
-                                            <label className="pb-2">Original Start</label>
+                                            <label className="pb-2">Originally Approved Start Date</label>
                                             <input type="date" className="form-control" value={originalStart} onChange={(e) => setOriginalStart(e.target.value)} />
                                         </div>
                                         <div className='col'>
-                                            <label className="pb-2">Original End</label>
+                                            <label className="pb-2">Originally Approved End Date</label>
                                             <input type="date" className="form-control" value={originalEnd} onChange={(e) => setOriginalEnd(e.target.value)} />
                                         </div>
                                         <div className='col'>
-                                            <label className="pb-2">Change Start</label>
+                                            <label className="pb-2">New Implementation Start Date</label>
                                             <input type="date" className="form-control" value={changeStart} onChange={(e) => setChangeStart(e.target.value)} />
                                         </div>
                                         <div className='col'>
-                                            <label className="pb-2">Change of Implementation Date</label>
+                                            <label className="pb-2">New Implementation End Date</label>
                                             <input type="date" className="form-control" value={changeImplementationDate} onChange={(e) => setChangeImplementationDate(e.target.value)} />
                                         </div>
                                     </div>
@@ -963,9 +1269,9 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                                     id={`input-${index}`}
                                                     name={`input-name-${index}`}
                                                     placeholder="Enter amount"
-                                                    defaultValue={item.amount ? item.amount : ''}
+                                                    value={item.amount && item.amount !== 0 ? item.amount : ''}
                                                     decimalsLimit={2}
-                                                    onValueChange={(value) => handleBudgetChange(index, parseFloat(value))}
+                                                    onValueChange={(value) => handleBudgetChange(index, parseFloat(value) || 0)}
                                                     className='form-control'
                                                 />
                                             </div>
@@ -975,56 +1281,9 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                             <input
                                                 type="text"
                                                 className="form-control"
-                                                value={totalBudget ? totalBudget.toLocaleString() : ''}
-                                                onChange={(e) => setTotalBudget(e.target.value)}
+                                                value={totalBudget !== undefined && totalBudget !== null && totalBudget !== '' ? (typeof totalBudget === 'number' ? totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : parseFloat(totalBudget.toString().replace(/,/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '0.00'}
                                                 readOnly
                                             />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className='container border p-4 mt-3 rounded'>
-                                    <h5><b>Approvals</b></h5>
-                                    <div className="row pt-3">
-                                        <div className='col'>
-                                            <label className="pb-2">DC Y1 Approval</label>
-                                            <input type="date" className="form-control" value={dcY1Approval} onChange={(e) => setDcY1Approval(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">GC Y1 Approval</label>
-                                            <input type="date" className="form-control" value={gcY1Approval} onChange={(e) => setGcY1Approval(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">Execom Y1 Approval</label>
-                                            <input type="date" className="form-control" value={execomY1Approval} onChange={(e) => setExecomY1Approval(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <h5 className='pt-3'><b>Renewals</b></h5>
-                                    <div className="row pt-3">
-                                        <div className='col'>
-                                            <label className="pb-2">DC Y2 Renewal</label>
-                                            <input type="date" className="form-control" value={dcY2Renewal} onChange={(e) => setDcY2Renewal(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">GC Y2 Renewal</label>
-                                            <input type="date" className="form-control" value={gcY2Renewal} onChange={(e) => setGcY2Renewal(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">Execom Y2 Renewal</label>
-                                            <input type="date" className="form-control" value={execomY2Renewal} onChange={(e) => setExecomY2Renewal(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <div className="row pt-3">
-                                        <div className='col'>
-                                            <label className="pb-2">DC Y3 Renewal</label>
-                                            <input type="date" className="form-control" value={dcY3Renewal} onChange={(e) => setDcY3Renewal(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">GC Y3 Renewal</label>
-                                            <input type="date" className="form-control" value={gcY3Renewal} onChange={(e) => setGcY3Renewal(e.target.value)} />
-                                        </div>
-                                        <div className='col'>
-                                            <label className="pb-2">Execom Y3 Renewal</label>
-                                            <input type="date" className="form-control" value={execomY3Renewal} onChange={(e) => setExecomY3Renewal(e.target.value)} />
                                         </div>
                                     </div>
                                 </div>
@@ -1078,79 +1337,120 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                                 )}
                                             </div>
                                         </div>
-                                        
                                     </div>
                                     <div className="row pt-3">
                                         <div className="col">
                                             <label className="pb-2">M&E</label>
                                             <span className="btn p-0 px-2" onClick={handleAddMandE}>
-                                            <i className="bi bi-plus-circle text-primary"></i>
+                                                <i className="bi bi-plus-circle text-primary"></i>
                                             </span>
                                             {mande.map((date, index) => (
-                                            <div key={index} className="d-flex align-items-start pb-2">
-                                                <div className="me-3 my-2">
-                                                <input
-                                                    type="radio"
-                                                    value="single"
-                                                    checked={date.type === 'single'}
-                                                    onChange={(e) => handleMandEChange(index, 'type', e.target.value)}
-                                                />
-                                                <label className="form-check-label ms-1 me-2">Single</label>
-                                                <input
-                                                    type="radio"
-                                                    value="range"
-                                                    checked={date.type === 'range'}
-                                                    onChange={(e) => handleMandEChange(index, 'type', e.target.value)}
-                                                />
-                                                <label className="form-check-label ms-1 me-2">Range</label>
+                                                <div key={index} className="d-flex align-items-start pb-2">
+                                                    <div className="me-3 my-2">
+                                                        <input
+                                                            type="radio"
+                                                            value="single"
+                                                            checked={date.type === 'single'}
+                                                            onChange={(e) => handleMandEChange(index, 'type', e.target.value, e.target.value)}
+                                                        />
+                                                        <label className="form-check-label ms-1 me-2">Single</label>
+                                                        <input
+                                                            type="radio"
+                                                            value="range"
+                                                            checked={date.type === 'range'}
+                                                            onChange={(e) => handleMandEChange(index, 'type', e.target.value, e.target.value)}
+                                                        />
+                                                        <label className="form-check-label ms-1 me-2">Range</label>
+                                                    </div>
+                                                    {date.type === 'single' ? (
+                                                        <div className="me-3">
+                                                            <input
+                                                                type="date"
+                                                                className="form-control"
+                                                                value={date.value || ''}
+                                                                onChange={(e) => handleMandEChange(index, 'value', e.target.value, 'single')}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="d-flex align-items-center me-3">
+                                                            <input
+                                                                type="date"
+                                                                className="form-control"
+                                                                value={date.value || ''}
+                                                                onChange={(e) => handleMandEChange(index, 'value', e.target.value, 'range')}
+                                                            />
+                                                            <label className="mx-2">-</label>
+                                                            <input
+                                                                type="date"
+                                                                className="form-control"
+                                                                value={date.end || ''}
+                                                                onChange={(e) => handleMandEChange(index, 'end', e.target.value, 'range')}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-grow-1 me-3">
+                                                        <textarea
+                                                            type="text"
+                                                            className="form-control"
+                                                            placeholder="Comment"
+                                                            value={date.comment || ''}
+                                                            onChange={(e) => handleMandEChange(index, 'comment', e.target.value)}
+                                                            rows="1"
+                                                        />
+                                                    </div>
+                                                    <span className="btn p-0 text-danger my-2" onClick={() => handleRemoveMandE(index)}>
+                                                        <i className="bi bi-dash-circle"></i>
+                                                    </span>
                                                 </div>
-
-                                                {date.type === 'single' ? (
-                                                <div className="me-3">
-                                                    <input
-                                                    type="date"
-                                                    className="form-control"
-                                                    value={date.value || ''}
-                                                    onChange={(e) => handleMandEChange(index, 'value', e.target.value, 'single')}
-                                                    />
-                                                </div>
-                                                ) : (
-                                                <div className="d-flex align-items-center me-3">
-                                                    <input
-                                                    type="date"
-                                                    className="form-control"
-                                                    value={date.value || ''}
-                                                    onChange={(e) => handleMandEChange(index, 'value', e.target.value, 'range')}
-                                                    />
-                                                    <label className="mx-2">-</label>
-                                                    <input
-                                                    type="date"
-                                                    className="form-control"
-                                                    value={date.end || ''}
-                                                    onChange={(e) => handleMandEChange(index, 'end', e.target.value, 'range')}
-                                                    />
-                                                </div>
-                                                )}
-
-                                                <div className="flex-grow-1 me-3">
-                                                <textarea   
-                                                    type="text"
-                                                    className="form-control"
-                                                    placeholder="Comment"
-                                                    value={date.comment || ''}
-                                                    onChange={(e) => handleMandEChange(index, 'comment', e.target.value)}
-                                                    rows="1"
-                                                />
-                                                </div>
-
-                                                <span className="btn p-0 text-danger my-2" onClick={() => handleRemoveMandE(index)}>
-                                                <i className="bi bi-dash-circle"></i>
-                                                </span>
-                                            </div>
                                             ))}
                                         </div>
+                                    </div>
+                                </div>
+                                <div className='container border p-4 mt-3 rounded'>
+                                    <h5><b>Approvals</b></h5>
+                                    <div className="row pt-3">
+                                        <div className='col'>
+                                            <label className="pb-2">DC Y1 Approval</label>
+                                            <input type="date" className="form-control" value={dcY1Approval} onChange={(e) => setDcY1Approval(e.target.value)} />
                                         </div>
-
+                                        <div className='col'>
+                                            <label className="pb-2">GC Y1 Approval</label>
+                                            <input type="date" className="form-control" value={gcY1Approval} onChange={(e) => setGcY1Approval(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Execom Y1 Approval</label>
+                                            <input type="date" className="form-control" value={execomY1Approval} onChange={(e) => setExecomY1Approval(e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <h5 className='pt-3'><b>Renewals</b></h5>
+                                    <div className="row pt-3">
+                                        <div className='col'>
+                                            <label className="pb-2">DC Y2 Renewal</label>
+                                            <input type="date" className="form-control" value={dcY2Renewal} onChange={(e) => setDcY2Renewal(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">GC Y2 Renewal</label>
+                                            <input type="date" className="form-control" value={gcY2Renewal} onChange={(e) => setGcY2Renewal(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Execom Y2 Renewal</label>
+                                            <input type="date" className="form-control" value={execomY2Renewal} onChange={(e) => setExecomY2Renewal(e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className='col'>
+                                            <label className="pb-2">DC Y3 Renewal</label>
+                                            <input type="date" className="form-control" value={dcY3Renewal} onChange={(e) => setDcY3Renewal(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">GC Y3 Renewal</label>
+                                            <input type="date" className="form-control" value={gcY3Renewal} onChange={(e) => setGcY3Renewal(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Execom Y3 Renewal</label>
+                                            <input type="date" className="form-control" value={execomY3Renewal} onChange={(e) => setExecomY3Renewal(e.target.value)} />
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className='container border p-4 mt-3 rounded'>
                                     <h5><b>Budget Realignment</b></h5>
@@ -1368,7 +1668,7 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="col">
+                                        <div className='col'>
                                             <label className="pb-2">Terminal Review</label>
                                             <span className='btn p-0 px-2' onClick={handleAddTReview}><i className="bi bi-plus-circle text-primary"></i></span>
                                             {terminalReview.map((date, index) => (
@@ -1433,9 +1733,31 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                     <div className="row pt-3">
                                         <div className='col'>
                                             <label className="pb-2">Status</label>
-                                            <textarea type="text" className="form-control" value={status} onChange={(e) => setStatus(e.target.value)} rows="1" />
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropStatus"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={status}
+                                                onChange={(e) => setStatus(e.target.value)}
+                                                placeholder='Select Status'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropStatus">
+                                                <li className="dropdown-item" onClick={() => setStatus('')}>Select Status</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>New</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>On-going</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Completed</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Liquidated</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Ongoing Liquidation</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Unliquidated</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Cleared</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Interminated</li>
+                                                <li className="dropdown-item" onClick={(e) => setStatus(e.target.innerText)}>Terminated</li>
+                                            </ul>
                                         </div>
-                                        <div className='col'>
+                                        <div className='col' style={{ opacity: status === 'Completed' ? 1 : 0.5 }}>
                                             <label className="pb-2">Remarks</label>
                                             <input
                                                 className="form-control w-100 dropdown-toggle"
@@ -1446,182 +1768,321 @@ const EditProjectModal = ({ isEditModalOpen, closeModal, project, refresh, showT
                                                 value={remarks}
                                                 onChange={(e) => setRemarks(e.target.value)}
                                                 placeholder='Select Remarks'
+                                                disabled={status !== 'Completed'}
+                                            />
+                                            <ul
+                                                className="dropdown-menu p-0"
+                                                aria-labelledby="dropRemarks"
+                                                style={{
+                                                    maxHeight: '240px',
+                                                    overflowY: 'auto',
+                                                    whiteSpace: 'normal',
+                                                    pointerEvents: status === 'Completed' ? 'auto' : 'none',
+                                                }}
+                                            >
+                                                <li className="dropdown-item" onClick={() => setRemarks('')}>Select Remarks</li>
+                                                {remarkOptions.map((remark) => (
+                                                    <li className="dropdown-item" key={remark}>
+                                                        <div className="form-check">
+                                                            <input
+                                                                className="form-check-input"
+                                                                type="checkbox"
+                                                                id={`remark-${remark}`}
+                                                                checked={remarks.split(' | ').includes(remark)}
+                                                                onChange={() => handleRemarkCheckboxChange(remark)}
+                                                            />
+                                                            <label className="form-check-label" htmlFor={`remark-${remark}`}>
+                                                                {remark}
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                                <li className="dropdown-item" onClick={() => setRemarks('')}>Others</li>
+                                            </ul>
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Banner Program</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropBannerProgram"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={bannerProgram}
+                                                onChange={(e) => setBannerProgram(e.target.value)}
+                                                placeholder='Select Banner Program'
                                                 readOnly
                                             />
-                                            <ul className="dropdown-menu p-0" aria-labelledby="dropRemarks">
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>New</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Ongoing</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Completed</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Terminated</li>
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropBannerProgram">
+                                                <li className="dropdown-item" onClick={() => setBannerProgram('')}>Select Banner Program</li>
+                                                <li className="dropdown-item" onClick={(e) => setBannerProgram(e.target.innerText)}>Strategic R&D</li>
+                                                <li className="dropdown-item" onClick={(e) => setBannerProgram(e.target.innerText)}>R&D Results utilization</li>
+                                                <li className="dropdown-item" onClick={(e) => setBannerProgram(e.target.innerText)}>Policy Research and Advocacy</li>
+                                                <li className="dropdown-item" onClick={(e) => setBannerProgram(e.target.innerText)}>Capacity Building and R&D Governance</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className='col'>
+                                            <label className="pb-2">Pillar</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropPillar"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={pillar}
+                                                onChange={(e) => setPillar(e.target.value)}
+                                                placeholder='Select Pillar'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropPillar">
+                                                <li className="dropdown-item" onClick={() => setPillar('')}>Select Pillar</li>
+                                                <li className="dropdown-item" onClick={(e) => setPillar(e.target.innerText)}>Pillar 1: Human Well-Being</li>
+                                                <li className="dropdown-item" onClick={(e) => setPillar(e.target.innerText)}>Pillar 2: Wealth Creation</li>
+                                                <li className="dropdown-item" onClick={(e) => setPillar(e.target.innerText)}>Pillar 3: Wealth Protection</li>
+                                                <li className="dropdown-item" onClick={(e) => setPillar(e.target.innerText)}>Pillar 4: Sustainability</li>
+                                            </ul>
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Strategy</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropStrategy"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={strategy}
+                                                onChange={(e) => setStrategy(e.target.value)}
+                                                placeholder='Select Strategy'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropStrategy">
+                                                <li className="dropdown-item" onClick={() => setStrategy('')}>Select Strategy</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 1: Achieve Quality Science Education and Enhance Employability of S&T Talents</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 2: Ensure Food Security</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 3: Improve Health and Nutrition</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 4: Improve Access to Clean Water, Clothing, and Shelter</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 5: Advance Research, Development, and Innovation</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 6: Scale-up Technology Adoption, Utilization and Commercialization</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 7: Strengthen Provision of STI Support Services for the Production and Manufacturing Sectors</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 8: Boost Intellectual Property Management and Protection for Locally-developed Technologies</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 9: Advance Disaster Risk Reduction Management and Processes</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 10: Improve Monitoring and Warning Systems for Risk Reduction</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 11: Strengthen Capacities for Local Disaster Risk Reduction and Management (DRRM)</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 12: Enhance Climate and Disaster Risk Resilience</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 13: Intensify Environmental Sustainability</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 14: Enhance Ecosystem Resilience</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 15: Establish Smart and Sustainable Communities</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 16: Improve Access to Clean and Green Energy</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 17: Institutionalize Science Communication</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 18: Build Robust Institutional Capacity</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 19: Roll-out S&T-enabled Systems for Seamless Operations</li>
+                                                <li className="dropdown-item" onClick={(e) => setStrategy(e.target.innerText)}>Strategy 20: Enhance Linkages for Science, Technology, Innovation, and Entrepreneurship Cooperation</li>
+                                            </ul>
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">Tagging</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropTagging"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={tagging}
+                                                onChange={(e) => setTagging(e.target.value)}
+                                                placeholder='Select Tagging'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropTagging">
+                                                <li className="dropdown-item" onClick={() => setTagging('')}>Select Tagging</li>
+                                                <li className="dropdown-item" onClick={(e) => setTagging(e.target.innerText)}>Smart</li>
+                                                <li className="dropdown-item" onClick={(e) => setTagging(e.target.innerText)}>Climate change</li>
+                                                <li className="dropdown-item" onClick={(e) => setTagging(e.target.innerText)}>Biodive</li>
                                             </ul>
                                         </div>
                                     </div>
                                 </div>
                                 <div className='container border p-4 mt-3 rounded'>
                                     <h5><b>6Ps</b></h5>
-                                    <select value={selectedYear} onChange={handleYearChange} className="form-select mb-3">
-                                        <option value="">Select Year</option>
-                                        {project && project.sixPs && Object.keys(project.sixPs).map((year) => (
-                                            <option key={year} value={year}>{year}</option>
-                                        ))}
-                                    </select>
-                                    {selectedYear && (
+                                    {sixPs && sixPs.length > 0 ? (
                                         <>
-                                            {!sixPs.length ? (
-                                                <div className='col'>
-                                                    <button type="button" className="btn btn-dark px-3 py-2 border" onClick={generateFields} style={{ fontSize: '14px' }}>
-                                                        Generate Fields
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                sixPs.map((item, index) => (
-                                                    <div key={index}>
-                                                        {/* Other fields */}
-                                                        {item.year === selectedYear && (
-                                                            <>
-                                                                <h6 className='pt-3 fw-bold'>Year: {item.year}</h6>
-                                                                <h6 className='pt-3 fw-semibold'>Publication</h6>
-                                                                <div className="row pt-3">
-                                                                    {/* <div className='col'>
-                                                                        <label className="pb-2">Year {item.year}</label>
-                                                                    </div> */}
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target Publication</label>
-                                                                        <textarea type="text" className="form-control" value={item.targetPublication} onChange={(e) => handleFieldChange(index, 'targetPublication', e.target.value)} rows="1" />
+                                            <select value={selectedYear} onChange={handleYearChange} className="form-select mb-3">
+                                                <option value="">Select Year</option>
+                                                {sixPs.map((item) => (
+                                                    <option key={item.year} value={item.year}>{item.year}</option>
+                                                ))}
+                                            </select>
+                                            {selectedYear && (
+                                                <>
+                                                    {sixPs.map((item, index) => (
+                                                        <div key={index}>
+                                                            {item.year === selectedYear && (
+                                                                <>
+                                                                    <h6 className='pt-3 fw-bold'>Year: {item.year}</h6>
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>Publication</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddPublicationEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Actual Accomplishment (Peer-Reviewed)</label>
-                                                                        <textarea type="text" className="form-control" value={item.actualaccomplishmentPeer} onChange={(e) => handleFieldChange(index, 'actualaccomplishmentPeer', e.target.value)} rows="1" />
+                                                                    {publicationEntries[item.year] && publicationEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <textarea type="text" className="form-control" value={entry.target} onChange={(e) => handlePublicationEntryChange(item.year, entryIndex, 'target', e.target.value)} rows="1" />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <textarea type="text" className="form-control" value={entry.actual} onChange={(e) => handlePublicationEntryChange(item.year, entryIndex, 'actual', e.target.value)} rows="1" />
+                                                                                    {publicationEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemovePublicationEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>Product</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddProductEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Actual Accomplishment (Journal)</label>
-                                                                        <textarea type="text" className="form-control" value={item.actualaccomplishmentJournal} onChange={(e) => handleFieldChange(index, 'actualaccomplishmentJournal', e.target.value)} rows="1" />
+                                                                    {productEntries[item.year] && productEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <textarea type="text" className="form-control" value={entry.target} onChange={(e) => handleProductEntryChange(item.year, entryIndex, 'target', e.target.value)} rows="1" />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <textarea type="text" className="form-control" value={entry.actual} onChange={(e) => handleProductEntryChange(item.year, entryIndex, 'actual', e.target.value)} rows="1" />
+                                                                                    {productEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemoveProductEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>Patent</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddPatentEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                </div>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Actual Accomplishment (Presented)</label>
-                                                                        <textarea type="text" className="form-control" value={item.actualaccomplishmentPresented} onChange={(e) => handleFieldChange(index, 'actualaccomplishmentPresented', e.target.value)} rows="1" />
+                                                                    {patentEntries[item.year] && patentEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <textarea type="text" className="form-control" value={entry.target} onChange={(e) => handlePatentEntryChange(item.year, entryIndex, 'target', e.target.value)} rows="1" />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <textarea type="text" className="form-control" value={entry.actual} onChange={(e) => handlePatentEntryChange(item.year, entryIndex, 'actual', e.target.value)} rows="1" />
+                                                                                    {patentEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemovePatentEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>People and Services</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddPeopleEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Details</label>
-                                                                        <textarea type="text" className="form-control" value={item.details} onChange={(e) => handleFieldChange(index, 'details', e.target.value)} rows="1" />
+                                                                    {peopleEntries[item.year] && peopleEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <textarea type="text" className="form-control" value={entry.target} onChange={(e) => handlePeopleEntryChange(item.year, entryIndex, 'target', e.target.value)} rows="1" />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <input type="text" className="form-control" value={entry.actual} onChange={(e) => handlePeopleEntryChange(item.year, entryIndex, 'actual', e.target.value)} />
+                                                                                    {peopleEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemovePeopleEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>Places and Partnership</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddPlacesEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Actual Accomplishment (IEC)</label>
-                                                                        <textarea type="text" className="form-control" value={item.actualaccomplishmentIEC} onChange={(e) => handleFieldChange(index, 'actualaccomplishmentIEC', e.target.value)} rows="1" />
+                                                                    {placesEntries[item.year] && placesEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <textarea type="text" className="form-control" value={entry.target} onChange={(e) => handlePlacesEntryChange(item.year, entryIndex, 'target', e.target.value)} rows="1" />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <input type="text" className="form-control" value={entry.actual} onChange={(e) => handlePlacesEntryChange(item.year, entryIndex, 'actual', e.target.value)} />
+                                                                                    {placesEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemovePlacesEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div className="d-flex justify-content-between align-items-center pt-3">
+                                                                        <h6 className='fw-semibold mb-0'>Policy</h6>
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleAddPolicyEntry(item.year)}>
+                                                                            <i className="bi bi-plus"></i> Add Target
+                                                                        </button>
                                                                     </div>
-                                                                </div>
-                                                                <h6 className='pt-3 fw-semibold'>Product</h6>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target Product</label>
-                                                                        <textarea type="text" className="form-control" value={item.targetProduct} onChange={(e) => handleFieldChange(index, 'targetProduct', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Name of Technology</label>
-                                                                        <textarea type="text" className="form-control" value={item.techName} onChange={(e) => handleFieldChange(index, 'techName', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Description of the Technology</label>
-                                                                        <textarea type="text" className="form-control" value={item.techDescription} onChange={(e) => handleFieldChange(index, 'techDescription', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                </div>
-                                                                <h6 className='pt-3 fw-semibold'>Patent</h6>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target Patent</label>
-                                                                        <textarea type="text" className="form-control" value={item.targetPatent} onChange={(e) => handleFieldChange(index, 'targetPatent', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Agency</label>
-                                                                        <textarea type="text" className="form-control" value={item.agency} onChange={(e) => handleFieldChange(index, 'agency', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Name of Technology/Protocols/Manual with IP/Patent</label>
-                                                                        <textarea type="text" className="form-control" value={item.techNamePro} onChange={(e) => handleFieldChange(index, 'techNamePro', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                </div>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Status</label>
-                                                                        <textarea type="text" className="form-control" value={item.statusSix} onChange={(e) => handleFieldChange(index, 'statusSix', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">DOST</label>
-                                                                        <select
-                                                                            className="form-select"
-                                                                            value={item.dost}
-                                                                            onChange={(e) => handleFieldChange(index, 'dost', e.target.value)}
-                                                                        >
-                                                                            <option value="Yes">Yes</option>
-                                                                            <option value="No">No</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Patent Number or Application Number</label>
-                                                                        <textarea type="text" className="form-control" value={item.patentNumber} onChange={(e) => handleFieldChange(index, 'patentNumber', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                </div>
-                                                                <h6 className='pt-3 fw-semibold'>People and Services</h6>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target People and Services</label>
-                                                                        <textarea type="text" className="form-control" value={item.targetPeople} onChange={(e) => handleFieldChange(index, 'targetPeople', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Names BS</label>
-                                                                        <input type="text" className="form-control" value={item.namesBS} onChange={(e) => handleFieldChange(index, 'namesBS', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Names MS</label>
-                                                                        <input type="text" className="form-control" value={item.namesMS} onChange={(e) => handleFieldChange(index, 'namesMS', e.target.value)} />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Names PhD</label>
-                                                                        <input type="text" className="form-control" value={item.namesPhD} onChange={(e) => handleFieldChange(index, 'namesPhD', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                                <h6 className='pt-3 fw-semibold'>Places and Partnership</h6>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target Places and Partnership</label>
-                                                                        <textarea type="text" className="form-control" value={item.targetPlaces} onChange={(e) => handleFieldChange(index, 'targetPlaces', e.target.value)} rows="1" />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Cooperators</label>
-                                                                        <input type="text" className="form-control" value={item.cooperators} onChange={(e) => handleFieldChange(index, 'cooperators', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">International</label>
-                                                                        <input type="text" className="form-control" value={item.international} onChange={(e) => handleFieldChange(index, 'international', e.target.value)} />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Private</label>
-                                                                        <input type="text" className="form-control" value={item.privateSixPS} onChange={(e) => handleFieldChange(index, 'privateSixPS', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                                <h6 className='pt-3 fw-semibold'>Policy</h6>
-                                                                <div className="row pt-3">
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Target Policy</label>
-                                                                        <input type="text" className="form-control" value={item.targetPolicy} onChange={(e) => handleFieldChange(index, 'targetPolicy', e.target.value)} />
-                                                                    </div>
-                                                                    <div className='col'>
-                                                                        <label className="pb-2">Policy Recommendations</label>
-                                                                        <input type="text" className="form-control" value={item.policyRecommendation} onChange={(e) => handleFieldChange(index, 'policyRecommendation', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                ))
+                                                                    {policyEntries[item.year] && policyEntries[item.year].map((entry, entryIndex) => (
+                                                                        <div key={entryIndex} className="row pt-3">
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Target {entryIndex + 1}</label>
+                                                                                <input type="text" className="form-control" value={entry.target} onChange={(e) => handlePolicyEntryChange(item.year, entryIndex, 'target', e.target.value)} />
+                                                                            </div>
+                                                                            <div className='col'>
+                                                                                <label className="pb-2">Actual {entryIndex + 1}</label>
+                                                                                <div className="d-flex">
+                                                                                    <input type="text" className="form-control" value={entry.actual} onChange={(e) => handlePolicyEntryChange(item.year, entryIndex, 'actual', e.target.value)} />
+                                                                                    {policyEntries[item.year].length > 1 && (
+                                                                                        <button type="button" className="btn btn-sm btn-danger ms-2" onClick={() => handleRemovePolicyEntry(item.year, entryIndex)}>
+                                                                                            <i className="bi bi-trash"></i>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </>
                                             )}
                                         </>
+                                    ) : (
+                                        <div className='col'>
+                                            <button type="button" className="btn btn-dark px-3 py-2 border" onClick={generateFields} style={{ fontSize: '14px' }}>
+                                                Generate Fields
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
 

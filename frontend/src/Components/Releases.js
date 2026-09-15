@@ -5,6 +5,7 @@ import DataTable from 'react-data-table-component';
 import * as XLSX from 'xlsx';
 import { Tooltip } from 'react-tooltip';
 import { useLocation } from "react-router-dom";
+import './Dashboard.css';
 import EditReleasesModal from './EditReleasesModal';
 import FilterReleasesModal from './FilterReleasesModal';
 
@@ -19,6 +20,22 @@ const Releases = ({ data, sidebarExpanded }) => {
     const [availableISP, setAvailableISP] = useState([]);
     const [showToast, setShowToast] = useState(false);
     const [toastTimeout, setToastTimeout] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Handle responsive breakpoints
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const location = useLocation();
     const state = location.state;
@@ -42,6 +59,21 @@ const Releases = ({ data, sidebarExpanded }) => {
             setFilterValue(state);
         }
     }, [state]);
+
+    // Auto-refresh data when page becomes visible (e.g., after editing)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                getInfo();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     const getInfo = async () => {
         const response = await axios.get('http://localhost:8080/Projects');
@@ -79,6 +111,62 @@ const Releases = ({ data, sidebarExpanded }) => {
     );
 
     const sortedData = [...filteredData].sort((a, b) => b.id - a.id);
+
+    const importFromExcel = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    const findColumn = (row, ...possibleNames) => {
+                        const rowKeys = Object.keys(row);
+                        for (let name of possibleNames) {
+                            if (row[name] !== undefined) return row[name];
+                            const found = rowKeys.find(key => key.toLowerCase() === name.toLowerCase());
+                            if (found) return row[found];
+                            const partial = rowKeys.find(key => key.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(key.toLowerCase()));
+                            if (partial) return row[partial];
+                        }
+                        return null;
+                    };
+
+                    const rowsToImport = jsonData.map(row => ({
+                        projectTitle: findColumn(row, 'Project Title', 'Project', 'Project Name') || null,
+                        programmedAmount: findColumn(row, 'Programmed Amount', 'programmedAmount', 'Amount') || null,
+                        regionIA: findColumn(row, 'Region of IA', 'regionIA', 'Region') || null,
+                        particulars: findColumn(row, 'Particulars', 'particulars', 'Particulars/Schedule') || null,
+                        dvNo: findColumn(row, 'DV No.', 'dvNo', 'DV') || null,
+                        dateOfRelease: findColumn(row, 'Date of Release', 'dateOfRelease', 'Date') || null,
+                        month: findColumn(row, 'Month', 'month') || null,
+                        actualRelease: findColumn(row, 'Actual Release', 'actualRelease', 'Actual') || null,
+                        remarksReleases: findColumn(row, 'Remarks', 'remarksReleases', 'Remarks (Releases)') || null,
+                        statusReleases: findColumn(row, 'Status', 'statusReleases', 'Status (Releases)') || null,
+                    })).filter(r => r.projectTitle);
+
+                    const response = await axios.post('http://localhost:8080/ImportReleases', rowsToImport);
+                    if (response.status === 200) {
+                        alert('GIA Releases imported successfully!');
+                        getInfo();
+                    }
+                } catch (error) {
+                    console.error('Error importing releases:', error);
+                    alert('Error importing releases: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            alert('Error reading file: ' + error.message);
+        }
+        event.target.value = '';
+    };
 
     const exportToExcel = () => {
         const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
@@ -428,7 +516,7 @@ const Releases = ({ data, sidebarExpanded }) => {
     };   
 
     return (
-        <article className='pt-5 pb-5 pe-5'>
+        <article className={`pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
             <EditReleasesModal
                 isEditModalOpen={isEditModalOpen}
                 closeModal={() => setIsEditModalOpen(false)}
@@ -485,51 +573,65 @@ const Releases = ({ data, sidebarExpanded }) => {
                             <i className="fa-solid fa-file-excel fs-5"></i>
                         </button>
                     </div>
+                    <div className='sample me-3 importTooltip' style={{ borderRadius: '50px', padding: '7px 2px 2px 2px' }}>
+                        <Tooltip anchorSelect=".importTooltip" style={{ borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+                            Import from Excel
+                        </Tooltip>
+                        <input 
+                            type="file" 
+                            id="importReleasesFile" 
+                            onChange={importFromExcel} 
+                            accept=".xlsx,.xls" 
+                            style={{ display: 'none' }} 
+                        />
+                        <button 
+                            type="button" 
+                            className="btn border-0 importTooltip" 
+                            onClick={() => document.getElementById('importReleasesFile').click()}
+                            data-bs-toggle="tooltip" 
+                            data-bs-title="Import from Excel"
+                        >
+                            <i className="fa-solid fa-upload fs-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div className='row row-cols-lg-2 g-3 pt-4'>
-                {/* Total Projects */}
-                <div className='col-lg-3'>
-                    <div className='card radius-10 border'>
+            <div className='dashboard-summary-row pt-4'>
+                <div className='dashboard-summary-col'>
+                    <div className='card radius-10 border dashboard-summary-card'>
                         <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                            <div className='d-flex align-items-center'>
-                                <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                                </div>
-                                <div className='ps-4 text-truncate'>
-                                    <p className='mb-0 text-dark fs-5 fw-semibold'>{calculateBudgetOverallTotal().toLocaleString()}</p>
-                                    <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Budget Total</p>
-                                </div>
+                            <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                                <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                            </div>
+                            <div className='dashboard-summary-content'>
+                                <p className='mb-0 text-dark fs-4 fw-bold'>{calculateBudgetOverallTotal().toLocaleString()}</p>
+                                <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Budget</p>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div className='col-lg-3'>
-                    <div className='card radius-10 border'>
+                <div className='dashboard-summary-col'>
+                    <div className='card radius-10 border dashboard-summary-card'>
                         <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                            <div className='d-flex align-items-center'>
-                                <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                                </div>
-                                <div className='ps-4 text-truncate'>
-                                    <p className='mb-0 text-dark fs-5 fw-semibold'>{calculateProgrammedOverallTotal().toLocaleString()}</p>
-                                    <p className='text-secondary h6' style={{ fontSize: '15px' }}>Programmed Budget Total</p>
-                                </div>
+                            <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                                <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                            </div>
+                            <div className='dashboard-summary-content'>
+                                <p className='mb-0 text-dark fs-4 fw-bold'>{calculateProgrammedOverallTotal().toLocaleString()}</p>
+                                <p className='text-secondary h6' style={{ fontSize: '15px' }}>Programmed Budget</p>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div className='col-lg-3'>
-                    <div className='card radius-10 border'>
+                <div className='dashboard-summary-col'>
+                    <div className='card radius-10 border dashboard-summary-card'>
                         <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                            <div className='d-flex align-items-center'>
-                                <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                                </div>
-                                <div className='ps-4 text-truncate'>
-                                    <p className='mb-0 text-dark fs-5 fw-semibold'>{calculateActualOverallTotal().toLocaleString()}</p>
-                                    <p className='text-secondary h6' style={{ fontSize: '15px' }}>Actual Releases Total</p>
-                                </div>
+                            <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                                <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                            </div>
+                            <div className='dashboard-summary-content'>
+                                <p className='mb-0 text-dark fs-4 fw-bold'>{calculateActualOverallTotal().toLocaleString()}</p>
+                                <p className='text-secondary h6' style={{ fontSize: '15px' }}>Actual Releases</p>
                             </div>
                         </div>
                     </div>
@@ -542,8 +644,14 @@ const Releases = ({ data, sidebarExpanded }) => {
                 responsive
                 highlightOnHover
                 striped
-                className='pt-5'
-                style={{ paddingLeft: sidebarExpanded ? '300px' : '150px', transition: 'padding-left 0.3s' }}
+                paginationPerPage={isMobile ? 5 : 10}
+                paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 25, 50]}
+                className={!isMobile ? 'pt-5' : ''}
+                style={{ 
+                    paddingLeft: !isMobile && sidebarExpanded ? (isTablet ? '250px' : '300px') : (isMobile ? '0px' : '150px'), 
+                    transition: 'padding-left 0.3s',
+                    fontSize: isMobile ? '12px' : '14px'
+                }}
             />
             <div
                 className="toast position-absolute start-50 translate-middle-x bg-success"

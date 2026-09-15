@@ -5,6 +5,7 @@ import DataTable from 'react-data-table-component';
 import * as XLSX from 'xlsx';
 import { Tooltip } from 'react-tooltip';
 import { useLocation } from "react-router-dom";
+import './Dashboard.css';
 import EditCounterpartFundModal from './EditCounterpartFundModal';
 import FilterCounterpartFundModal from './FilterCounterpartFundModal';
 
@@ -19,6 +20,22 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
     const [availableISP, setAvailableISP] = useState([]);
     const [showToast, setShowToast] = useState(false);
     const [toastTimeout, setToastTimeout] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Handle responsive breakpoints
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const location = useLocation();
     const state = location.state;
@@ -47,11 +64,80 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
         fetchAvailableISPs(response.data);
     };
 
+    const importFromExcel = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    // Flexible column matching helper
+                    const findColumn = (row, ...possibleNames) => {
+                        const rowKeys = Object.keys(row);
+                        for (let name of possibleNames) {
+                            if (row[name] !== undefined) return row[name];
+                            const found = rowKeys.find(key => key.toLowerCase() === name.toLowerCase());
+                            if (found) return row[found];
+                            const partial = rowKeys.find(key => key.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(key.toLowerCase()));
+                            if (partial) return row[partial];
+                        }
+                        return null;
+                    };
+
+                    const rowsToImport = jsonData.map(row => ({
+                        projectTitle: findColumn(row, 'Project Title', 'Project', 'Project Name') || null,
+                        year: findColumn(row, 'Year', 'year') || null,
+                        amount: findColumn(row, 'Amount', 'amount', 'Value') || null,
+                        totalFund: findColumn(row, 'Total', 'Total Fund', 'totalFund') || null,
+                    })).filter(r => r.projectTitle && r.year && (r.amount !== null && r.amount !== undefined && r.amount !== ''));
+
+                    // Send to backend for processing
+                    const response = await axios.post('http://localhost:8080/ImportCounterpartFunds', rowsToImport);
+                    if (response.status === 200) {
+                        setShowToast(true);
+                        setTimeout(() => setShowToast(false), 3000);
+                        getInfo();
+                    }
+                } catch (error) {
+                    console.error('Error importing counterpart funds:', error);
+                    alert('Error importing counterpart funds: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            alert('Error reading file: ' + error.message);
+        }
+
+        // Reset file input
+        event.target.value = '';
+    };
     useEffect(() => {
         if (state) {
             setFilterValue(state);
         }
     }, [state]);
+
+    // Auto-refresh data when page becomes visible (e.g., after editing)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                getInfo();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     const refreshData = () => {
         getInfo();
@@ -140,7 +226,15 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
                 'Program Leader': row.programLeader,
                 'Duration': duration,
                 ...allYears.reduce((acc, year) => {
-                    acc[year] = row.counterFund && row.counterFund[year] ? parseFloat(row.counterFund[year].replace(/,/g, '')) : 0;
+                    if (row.counterFund && row.counterFund[year]) {
+                        const yearNum = parseInt(year);
+                        // Only include if year is valid (> 0)
+                        if (!isNaN(yearNum) && yearNum > 0) {
+                            acc[year] = parseFloat(row.counterFund[year].toString().replace(/,/g, ''));
+                        }
+                    } else {
+                        acc[year] = 0;
+                    }
                     return acc;
                 }, {}),
                 'Total': row.counterpartFundData ? parseFloat(row.counterpartFundData.totalFund.replace(/,/g, '')) : 0,
@@ -214,15 +308,22 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
     };
 
 
-    const allYears = originalInfo.reduce((years, project) => {
-        const projectYears = project.counterFund ? Object.keys(project.counterFund) : [];
-        projectYears.forEach(year => {
-            if (!years.includes(year)) {
-                years.push(year);
-            }
-        });
-        return years;
-    }, []).sort((a, b) => parseInt(a) - parseInt(b));
+    // Define fixed years 2016-2030, then add any additional years from data
+    const fixedYears = Array.from({ length: 15 }, (_, i) => String(2016 + i)); // 2016-2030
+    const allYears = [
+        ...fixedYears,
+        ...originalInfo.reduce((years, project) => {
+            const projectYears = project.counterFund ? Object.keys(project.counterFund) : [];
+            projectYears.forEach(year => {
+                // Filter out invalid years (0, "0", null, or non-numeric values)
+                const yearNum = parseInt(year);
+                if (!isNaN(yearNum) && yearNum > 0 && !fixedYears.includes(year) && !years.includes(year)) {
+                    years.push(year);
+                }
+            });
+            return years;
+        }, [])
+    ].sort((a, b) => parseInt(a) - parseInt(b));
 
     const columns = [
         { name: 'No.', selector: (row, index) => index + 1, sortable: true, width: '70px' },
@@ -285,10 +386,26 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
         },          
         ...allYears.map(year => ({
             name: year,
-            selector: row => row.counterFund && row.counterFund[year] ? row.counterFund[year] : '',
+            selector: row => {
+                if (!row.counterFund) return '';
+                const value = row.counterFund[year];
+                // Handle both string and numeric values
+                if (typeof value === 'string') {
+                    return parseFloat(value.replace(/,/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                return value ? value.toLocaleString() : '';
+            },
             sortable: true,
         })),
-        { name: 'Total', selector: (row) => row.counterpartFundData ? row.counterpartFundData.totalFund : '', sortable: true, wrap: true, width: '140px' },
+        { name: 'Total', selector: (row) => {
+            if (row.counterpartFundData && row.counterpartFundData.totalFund) {
+                const value = typeof row.counterpartFundData.totalFund === 'string' ? 
+                    parseFloat(row.counterpartFundData.totalFund.replace(/,/g, '')) : 
+                    row.counterpartFundData.totalFund;
+                return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            return '0.00';
+        }, sortable: true, wrap: true, width: '140px' },
         {
             name: 'Remarks',
             selector: (row) => (
@@ -333,8 +450,12 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
         data.forEach(project => {
             if (project.counterFund) {
                 Object.keys(project.counterFund).forEach(year => {
-                    const budgetValue = parseFloat(project.counterFund[year].replace(/,/g, ''));
-                    totals[year] = (totals[year] || 0) + budgetValue;
+                    // Filter out invalid years (0, "0", null, or non-numeric values)
+                    const yearNum = parseInt(year);
+                    if (!isNaN(yearNum) && yearNum > 0) {
+                        const budgetValue = parseFloat(project.counterFund[year].replace(/,/g, ''));
+                        totals[year] = (totals[year] || 0) + budgetValue;
+                    }
                 });
             }
         });
@@ -396,7 +517,7 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
     const overallTotal = calculateOverallTotal();
     
     return (
-        <article className='pt-5 pb-5 pe-5'>
+        <article className={`pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
             <EditCounterpartFundModal
                 isEditModalOpen={isEditModalOpen}
                 closeModal={() => setIsEditModalOpen(false)}
@@ -408,7 +529,7 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
                 <label className='h5 fw-semibold pt-2'>Counterpart Funds</label>
                 <div className="d-flex align-items-center">
                     <div className="me-4">
-                        {/* <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'relative', width: isMobile ? '160px' : '260px' }}>
                             <input
                                 type="text"
                                 className="form-control"
@@ -424,13 +545,12 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
                                         top: '50%',
                                         right: '10px',
                                         transform: 'translateY(-50%)',
-                                        zIndex: '1',
+                                        zIndex: 1,
                                     }}
                                     onClick={() => setFilterValue('')}
-                                >
-                                </button>
+                                />
                             )}
-                        </div> */}
+                        </div>
                     </div>
                     <FilterCounterpartFundModal
                         applyFilter={applyFilter}
@@ -453,20 +573,39 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
                             <i className="fa-solid fa-file-excel fs-5"></i>
                         </button>
                     </div>
+                    <div className='sample me-3 importTooltip' style={{ borderRadius: '50px', padding: '7px 2px 2px 2px' }}>
+                        <Tooltip anchorSelect=".importTooltip" style={{ borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+                            Import from Excel
+                        </Tooltip>
+                        <input 
+                            type="file" 
+                            id="importCounterpartFundsFile" 
+                            onChange={importFromExcel} 
+                            accept=".xlsx,.xls" 
+                            style={{ display: 'none' }} 
+                        />
+                        <button 
+                            type="button" 
+                            className="btn border-0 importTooltip" 
+                            onClick={() => document.getElementById('importCounterpartFundsFile').click()}
+                            data-bs-toggle="tooltip" 
+                            data-bs-title="Import from Excel"
+                        >
+                            <i className="fa-solid fa-upload fs-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div className='row row-cols-lg-2 g-3 pt-4'>
-                <div className='col-lg-3'>
-                    <div className='card radius-10 border'>
+            <div className='dashboard-summary-row pt-4'>
+                <div className='dashboard-summary-col'>
+                    <div className='card radius-10 border dashboard-summary-card'>
                         <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                            <div className='d-flex align-items-center'>
-                                <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                                </div>
-                                <div className='ps-4 text-truncate'>
-                                    <p className='mb-0 text-dark fs-5 fw-semibold'>{calculateOverallTotal().toLocaleString()}</p>
-                                    <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Counterpart Fund Total</p>
-                                </div>
+                            <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                                <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                            </div>
+                            <div className='dashboard-summary-content'>
+                                <p className='mb-0 text-dark fs-4 fw-bold'>{calculateOverallTotal().toLocaleString()}</p>
+                                <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Counterpart Fund Total</p>
                             </div>
                         </div>
                     </div>
@@ -479,8 +618,14 @@ const CounterpartFunds = ({ data, sidebarExpanded }) => {
                 responsive
                 highlightOnHover
                 striped
-                className='pt-5'
-                style={{ paddingLeft: sidebarExpanded ? '300px' : '150px', transition: 'padding-left 0.3s' }}
+                paginationPerPage={isMobile ? 5 : 10}
+                paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 25, 50]}
+                className={!isMobile ? 'pt-5' : ''}
+                style={{ 
+                    paddingLeft: !isMobile && sidebarExpanded ? (isTablet ? '250px' : '300px') : (isMobile ? '0px' : '150px'), 
+                    transition: 'padding-left 0.3s',
+                    fontSize: isMobile ? '12px' : '14px'
+                }}
             />
 
             <div className="">

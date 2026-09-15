@@ -1,0 +1,89 @@
+.indirect-summary-table{width:100%;border-collapse:separate;border-spacing:0 0;border:0}
+.indirect-summary-table thead th{font-weight:800;font-size:15px;padding:18px 12px;text-align:left;border-bottom:1px solid #eee}
+.indirect-summary-table thead th.center{text-align:center}
+.indirect-summary-table tbody td{padding:12px 12px;border-bottom:1px solid #f3f3f3;color:#222}
+.indirect-summary-table tbody td.center{text-align:center}
+.indirect-summary-table tbody tr.empty-row td{height:60px;background:#fff}
+.indirect-summary-table .total-row td{font-weight:800;font-size:15px;padding:14px;text-align:center}
+.indirect-summary-table .total-row td:first-child{text-align:left}
+
+/* subtle responsive tweaks */
+@media (max-width: 768px){
+  .indirect-summary-table thead th{font-size:13px;padding:12px}
+  .indirect-summary-table .total-row td{font-size:13px;padding:10px}
+}
+
+/* DataTable specific styling */
+.indirect-summary-datatable .rdt_TableHead { border-bottom: 1px solid #eee; }
+.indirect-summary-datatable .rdt_TableHeadRow { background: #fff; }
+.indirect-summary-datatable .rdt_TableHeadRow .rdt_TableCell { font-weight: 800; padding: 14px 12px; font-size: 14px; }
+.indirect-summary-datatable .rdt_TableRow .rdt_TableCell { padding: 12px 12px; border-bottom: 1px solid #f3f3f3; color: #222; }
+.indirect-summary-datatable .indirect-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Totals block below the table */
+.indirect-summary-total { width: 100%; display: grid; grid-template-columns: 1fr repeat(5, 150px); gap: 8px; align-items: center; margin-top: 8px; }
+.indirect-summary-total .label { font-weight: 800; padding: 14px 12px; }
+.indirect-summary-total .value { font-weight: 800; text-align: right; padding: 14px 12px; }
+
+@media (max-width: 992px) {
+  .indirect-summary-total { grid-template-columns: 1fr repeat(5, minmax(80px, 1fr)); }
+}
+
+/* total row numeric styling */
+.indirect-total-num { font-weight: 800; font-size: 16px; padding: 18px 12px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.indirect-total-num { font-weight: 900; }
+.indirect-total-num.text-danger { color: #d9534f; font-weight: 900; }
+
+/* TOTAL row styling - matches DataTable structure */
+.indirect-total-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.indirect-total-table td {
+    padding: 12px 16px;
+    border-top: 2px solid #dee2e6;
+    border-bottom: 2px solid #dee2e6;
+    background-color: #f9f9f9;
+    font-weight: 900;
+}
+
+/* Voucher modal table styling */
+.modal .table-bordered {
+    border: none;
+}
+.modal .table-bordered th,
+.modal .table-bordered td {
+    border: none;
+    border-bottom: 1px solid #f3f3f3;
+}
+.modal .table-bordered th:last-child,
+.modal .table-bordered td:last-child {
+    border-right: none;
+}
+.modal .table-bordered td.text-end {
+    text-align: right;
+}
+
+.indirect-col-item {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 150px;
+    text-align: left;
+}
+
+.indirect-col-num {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 120px;
+    text-align: right;
+    padding-right: 20px;
+}
+
+.indirect-col-actions {
+    flex: 0 0 auto;
+    width: 100px;
+}
+

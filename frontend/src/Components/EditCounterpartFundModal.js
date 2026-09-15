@@ -9,24 +9,39 @@ const EditCounterpartFundModal = ({ isEditModalOpen, closeModal, project, refres
     const [totalFund, setTotalFund] = useState('');
     const [originalStart, setOriginalStart] = useState('');
     const [originalEnd, setOriginalEnd] = useState('');
+    const [remarks, setRemarks] = useState('');
 
 	const [showToast, setShowToast] = useState(false);
 	const [showToastSuccess, setShowToastSuccess] = useState(false);
 	const [toastTimeout, setToastTimeout] = useState(null);
 
+    // Fixed years from 2016 to 2030
+    const fixedYears = Array.from({ length: 15 }, (_, i) => 2016 + i);
+
     useEffect(() => {
-        if (project && project.counterpartFundData) {
+        if (project) {
             console.log("Received project:", project);
-            const fundArray = project.counterFund ? 
-                Object.keys(project.counterFund).map((year) => ({
-                    year: year,
-                    amount: parseFloat(project.counterFund[year].replace(/,/g, '')),
-                })) 
-                : [];
+            // Build fund array based on fixed years 2016-2030, using existing values if present
+            const fundArray = fixedYears.map((year) => {
+                let amt = '';
+                if (project.counterFund && project.counterFund[year]) {
+                    const v = project.counterFund[year];
+                    amt = (typeof v === 'string') ? parseFloat(v.replace(/,/g, '')) : v;
+                }
+                return { year: year, amount: amt };
+            });
+
             setCounterFund(fundArray);
-            setTotalFund(project.counterpartFundData.totalFund)
+            // Recalculate total from fund array
+            const calculatedTotal = fundArray.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+            setTotalFund(calculatedTotal || 0);
+            setRemarks(project.remarks || '');
         } else {
-            console.log("Received project:", project);
+            // Initialize with fixed years empty
+            const emptyArray = fixedYears.map(year => ({ year, amount: '' }));
+            setCounterFund(emptyArray);
+            setTotalFund(0);
+            setRemarks('');
         }
     }, [project]);
     
@@ -34,11 +49,19 @@ const EditCounterpartFundModal = ({ isEditModalOpen, closeModal, project, refres
     const updateFund = async (e) => {
         e.preventDefault();
 
-        const isFundChanged = project.fundArray && JSON.stringify(counterFund) !== JSON.stringify(project.fundArray);
-        const isTotalFundChanged = parseFloat(totalFund) !== parseFloat(project.counterpartFundData.totalFund?.replace(/,/g, '') || '0');
-        const isChanged =
-        isFundChanged ||
-        isTotalFundChanged;
+        // Safely compare with original values (project may be null)
+        const origFundArray = project?.fundArray ?? [];
+        const isFundChanged = JSON.stringify(counterFund) !== JSON.stringify(origFundArray);
+
+        const origTotalRaw = project?.counterpartFundData?.totalFund ?? '0';
+        const origTotal = parseFloat(origTotalRaw.toString().replace(/,/g, '')) || 0;
+        const newTotal = parseFloat(totalFund || 0) || 0;
+        const isTotalFundChanged = newTotal !== origTotal;
+
+        const origRemarks = project?.remarks ?? '';
+        const isRemarksChanged = (remarks ?? '') !== origRemarks;
+
+        const isChanged = isFundChanged || isTotalFundChanged || isRemarksChanged;
     
         if (!isChanged) {
             setShowToast(true);
@@ -53,9 +76,13 @@ const EditCounterpartFundModal = ({ isEditModalOpen, closeModal, project, refres
         }
     
         try {
-            await axios.patch(`http://localhost:8080/CounterpartFund/${project.id}`, {
+            const projectId = project?.id;
+            if (!projectId) throw new Error('Project ID missing');
+
+            await axios.patch(`http://localhost:8080/CounterpartFund/${projectId}`, {
                 counterFund: counterFund.map(item => ({ year: item.year, amount: item.amount })),
                 totalFund: totalFund,
+                remarks: remarks,
             });
             closeModal();
 			refresh();
@@ -116,41 +143,74 @@ const EditCounterpartFundModal = ({ isEditModalOpen, closeModal, project, refres
 								</div>
                             </div>
                             <div className="modal-body">
-                                <div className='container border p-4 mt-3 rounded'>
-                                    <h5><b>Counterpart Funds</b></h5>
-                                    <div className='row pt-3'>
-                                        {!counterFund.length ? (
-                                            <div className='col'>
-                                                <button type="button" className="btn btn-dark px-3 py-2 border" onClick={generateFundFields} style={{ fontSize: '14px' }}>
-                                                    Generate Funds Fields
-                                                </button>
-                                            </div>
-                                        ) : null}
+                                <div className='container p-3 mt-2 rounded'>
+                                    <h5 className='mb-3'><b>Edit Counterpart Funds</b></h5>
+
+                                    {/* Project header fields (read-only) */}
+                                    <div className="row">
+                                        <div className="col-12 col-md-6 mb-3">
+                                            <label className="form-label">Project Title</label>
+                                            <input type="text" className="form-control form-control-sm" value={project ? project.projectTitle : ''} readOnly />
+                                        </div>
+                                        <div className="col-12 col-md-6 mb-3">
+                                            <label className="form-label">ISP</label>
+                                            <input type="text" className="form-control form-control-sm" value={project ? project.ISP : ''} readOnly />
+                                        </div>
+                                        <div className="col-12 col-md-6 mb-3">
+                                            <label className="form-label">Implementing Agency</label>
+                                            <input type="text" className="form-control form-control-sm" value={project ? project.implementingAgency : ''} readOnly />
+                                        </div>
+                                        <div className="col-12 col-md-6 mb-3">
+                                            <label className="form-label">Program Leader</label>
+                                            <input type="text" className="form-control form-control-sm" value={project ? project.programLeader : ''} readOnly />
+                                        </div>
+                                        <div className="col-12 col-md-6 mb-3">
+                                            <label className="form-label">Duration</label>
+                                            <input type="text" className="form-control form-control-sm" value={project ? ((project.changeStart || project.originalStart) && (project.changeImplementationDate || project.originalEnd) ? `${new Date(project.changeStart || project.originalStart).toLocaleDateString()} - ${new Date(project.changeImplementationDate || project.originalEnd).toLocaleDateString()}` : '') : ''} readOnly />
+                                        </div>
                                     </div>
-                                    <div className="row pt-3">
+
+                                    {/* Top boxed area removed as requested */}
+
+                                    {/* Year inputs as stacked single-column form groups (one per row) */}
+                                    <div className="row">
+                                        {counterFund.length === 0 && (
+                                            <div className='col-12 text-muted mb-3'>No fund rows yet. Click "Generate Funds Fields" to create year fields.</div>
+                                        )}
                                         {counterFund.map((item, index) => (
-                                            <div key={index} className="col">
-                                                <label className="pb-2">Year {item.year}</label>
+                                            <div key={index} className="col-12 col-md-3 mb-3">
+                                                <label className="form-label">Year {item.year}</label>
                                                 <CurrencyInput
                                                     id={`input-${index}`}
                                                     name={`input-name-${index}`}
                                                     placeholder="Enter amount"
-                                                    defaultValue={item.amount ? item.amount : ''}
+                                                    value={item.amount !== '' && item.amount !== null ? item.amount : ''}
                                                     decimalsLimit={2}
-                                                    onValueChange={(value) => handleFundChange(index, parseFloat(value))}
-                                                    className='form-control'
+                                                    onValueChange={(value) => handleFundChange(index, value === undefined || value === null || value === '' ? '' : parseFloat(value))}
+                                                    className='form-control form-control-sm'
                                                 />
                                             </div>
                                         ))}
-                                        <div className="col">
-                                            <label className="pb-2">Total Fund</label>
-                                            <input 
-                                                type="text" 
-                                                className="form-control" 
-                                                value={totalFund ? totalFund.toLocaleString() : ''}
-                                                onChange={(e) => setTotalFund(e.target.value)}
+                                    </div>
+
+                                    {/* Computed Total Fund (updates when year amounts change) */}
+                                    <div className="row mt-2">
+                                        <div className="col-12 mb-3">
+                                            <label className="form-label">Total Fund</label>
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm"
+                                                value={typeof totalFund === 'number' ? totalFund.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (totalFund ? parseFloat(totalFund.toString().replace(/,/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00')}
                                                 readOnly
                                             />
+                                        </div>
+                                    </div>
+
+                                    {/* Remarks (compact) */}
+                                    <div className="row mt-2">
+                                        <div className="col-12 col-md-3 mb-3">
+                                            <label className="form-label">Remarks</label>
+                                            <input type="text" className="form-control form-control-sm" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
                                         </div>
                                     </div>
                                 </div>

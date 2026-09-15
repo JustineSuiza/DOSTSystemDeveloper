@@ -1,0 +1,101 @@
+/* Major table styles to match Projects layout */
+.major-table thead th {
+  border-bottom: 0;
+  font-weight: 600;
+  color: #222;
+}
+.major-table tbody tr {
+  height: 72px;
+}
+.major-table tbody tr:nth-child(odd) {
+  background: #fafafa;
+}
+.major-table td, .major-table th {
+  vertical-align: middle;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+.major-actions .major-icon-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f2f2f2;
+  border: 0;
+  color: #222;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.major-actions .major-icon-button:hover,
+.major-actions .major-icon-button:focus {
+  background: #e9ecef;
+  color: #222;
+  box-shadow: none;
+}
+.major-top-search .form-control {
+  height: 44px;
+}
+
+.major-card {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent;
+}
+.major-card .card-body {
+  padding: 0 !important;
+}
+
+.major-table-wrapper {
+  border: 0 !important;
+}
+
+.major-table .rdt_Table,
+.major-table .rdt_TableWrapper,
+.major-table .rdt_TableHead,
+.major-table .rdt_TableRow,
+.major-table .rdt_TableCell,
+.major-table .rdt_TableHeadCell,
+.major-table .rdt_TableCol {
+  border: 0 !important;
+}
+
+.major-table .rdt_TableRow {
+  border-bottom: 0 !important;
+}
+
+.major-table .rdt_TableHeadRow {
+  border-bottom: 0 !important;
+}
+
+.major-table .rdt_TableCell,
+.major-table .rdt_TableHeadCell {
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.major-table .rdt_TableRow:hover {
+  background: #f8f9fa;
+}
+
+/* ensure pagination stays separated below scroll */
+.major-table .rdt_Pagination {
+  border-top: 1px solid #e9ecef;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+/* Modal styles for add entry */
+.major-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.major-modal {
+  width: 820px;
+  max-width: 95%;
+}

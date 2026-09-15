@@ -92,7 +92,7 @@ const Sidebar = ({ openModal, openSidebar, closeSidebar }) => {
               </Link>
             </li> */}
           <li className="sidebar-item">
-            <a className={`sidebar-link collapsed w-auto has-dropdown ${isActive('/DOST/Proposals') ? 'active' : ''} ${isActive('/DOST/Projects') ? 'active' : ''} ${isActive('/DOST/Budgets') ? 'active' : ''} ${isActive('/DOST/Releases') ? 'active' : ''} ${isActive('/DOST/Counterpart-Funds') ? 'active' : ''} ${expandedReports ? 'showw' : null}`} onClick={handleReportClick}>
+            <a className={`sidebar-link collapsed w-auto has-dropdown ${isActive('/DOST/Proposals') ? 'active' : ''} ${isActive('/DOST/Projects') ? 'active' : ''} ${isActive('/DOST/Budgets') ? 'active' : ''} ${isActive('/DOST/Investment-Per-Banner-Program') ? 'active' : ''} ${isActive('/DOST/Releases') ? 'active' : ''} ${isActive('/DOST/Counterpart-Funds') ? 'active' : ''} ${isActive('/DOST/Future-SandT-Directions') ? 'active' : ''} ${expandedReports ? 'showw' : null}`} onClick={handleReportClick}>
               <i className="fa-solid fa-chart-bar"></i>
               {(expandedByToggle || expandedByHover) && (
                 <label>
@@ -110,15 +110,110 @@ const Sidebar = ({ openModal, openSidebar, closeSidebar }) => {
                   {(expandedByToggle || expandedByHover) && <label>Projects</label>}
                 </Link>
               </li>
-              <li className="sidebar-item">
-                {/* <a href="#" className="sidebar-link" onClick={openModal}>
-                    <i className="fa-solid fa-pen" style={{ color: 'transparent' }}></i>
-                    {(expandedByToggle || expandedByHover) && <label>Proposals</label>}
-                  </a> */}
-                <Link to="/DOST/Proposals" className={`sidebar-link`}>
+              <li className="sidebar-item dropend">
+                <a type='button' className={`sidebar-link`} data-bs-toggle="dropdown" aria-expanded="false">
                   <i className="fa-solid fa-pen" style={{ color: 'transparent' }}></i>
-                  {(expandedByToggle || expandedByHover) && <label>Proposals</label>}
-                </Link>
+                  {(expandedByToggle || expandedByHover) && <label>Proposals <span><i className="fa-solid fa-caret-right ms-5"></i></span></label>}
+                </a>
+                <ul className="dropdown-menu border-0 p-0 m-0 mt-4 h-auto w-auto shadow-lg text-start">
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Proposals/Concept" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Concept Proposal</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Proposals" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Proposal Page</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Proposals/Fullblown" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Fullblown Proposal</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Proposals/IDD" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>IDD Proposal</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+              <li className="sidebar-item dropend">
+                <a type='button' className={`sidebar-link`} data-bs-toggle="dropdown" aria-expanded="false">
+                  <i className="fa-solid fa-pen" style={{ color: 'transparent' }}></i>
+                  {(expandedByToggle || expandedByHover) && <label>Goals <span><i className="fa-solid fa-caret-right ms-5"></i></span></label>}
+                </a>
+                <ul className="dropdown-menu border-0 p-0 m-0 mt-4 h-auto w-auto shadow-lg text-start">
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Goals" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Goals</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Gaps" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Gaps</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+              <li className="sidebar-item dropend">
+                <a type='button' className={`sidebar-link`} data-bs-toggle="dropdown" aria-expanded="false">
+                  <i className="fa-solid fa-pen" style={{ color: 'transparent' }}></i>
+                  {(expandedByToggle || expandedByHover) && <label>Major <span><i className="fa-solid fa-caret-right ms-5"></i></span></label>}
+                </a>
+                <ul className="dropdown-menu border-0 p-0 m-0 mt-4 h-auto w-auto shadow-lg text-start">
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Major" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Major Milestone</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Major-Accomplishment" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>Major Accomplishment</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Major-Programs" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '220px' }}>CY 2026-2028 Major Programs</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
               </li>
               <li className="sidebar-item dropend">
                 <a type='button' className={`sidebar-link`} data-bs-toggle="dropdown" aria-expanded="false">
@@ -149,6 +244,33 @@ const Sidebar = ({ openModal, openSidebar, closeSidebar }) => {
                       <div className='d-flex flex-column float'>
                         <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
                           <Link to="/DOST/Counterpart-Funds" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '200px' }}>Counterpart Funds</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                                <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Future-SandT-Directions" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '200px' }}>Future S&T Directions</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '12.5px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Investment-Per-Banner-Program" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '200px' }}>Investment per Banner Program</Link>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li className='m-1 notif-item'>
+                    <div className=" d-flex align-items-center">
+                      <div className='d-flex flex-column float'>
+                        <div className='fw-medium' style={{ fontSize: '13px', paddingTop: '2px' }}>
+                          <Link to="/DOST/Indirect-Cost-Summary" className={`dropdown-item`} onClick={handleDropdownClick} style={{ width: '200px' }}>Indirect Cost Summary</Link>
                         </div>
                       </div>
                     </div>

@@ -19,7 +19,7 @@ const regionCoordinates = {
   "Region VI (Western Visayas)": [122.5373, 11.0050],
   "Region VII (Central Visayas)": [124.0641, 9.8169],
   "Region VIII (Eastern Visayas)": [125.0388, 12.2446],
-  "Region IX (Zamboanga Peninzula)": [123.2588, 8.1541],
+  "Region IX (Zamboanga Peninsula)": [123.2588, 8.1541],
   "Region X (Northern Mindanao)": [124.6857, 8.0202],
   "Region XI (Davao Region)": [126.0893, 7.3042],
   "Region XII (SOCCSKSARGEN)": [124.6857, 6.2707],
@@ -29,24 +29,94 @@ const regionCoordinates = {
   "Region XIII (Caraga)": [125.7407, 8.8015],
 };
 
+const normalizeRegionLabel = (region) => {
+  if (!region) return '';
+
+  const normalized = String(region).trim();
+  const aliasMap = {
+    'Region I: Ilocos Region': 'Region I (Ilocos Region)',
+    'Region II: Cagayan Valley': 'Region II (Cagayan Valley)',
+    'Region III: Central Luzon': 'Region III (Central Luzon)',
+    'Region IV-A: CALABARZON': 'Region IV-A (CALABARZON)',
+    'Region IV-B: MIMAROPA': 'Region IV-B (MIMAROPA)',
+    'Region V: Bicol Region': 'Region V (Bicol Region)',
+    'Region VI: Western Visayas': 'Region VI (Western Visayas)',
+    'Region VII: Central Visayas': 'Region VII (Central Visayas)',
+    'Region VIII: Eastern Visayas': 'Region VIII (Eastern Visayas)',
+    'Region IX: Zamboanga Peninsula': 'Region IX (Zamboanga Peninsula)',
+    'Region X: Northern Mindanao': 'Region X (Northern Mindanao)',
+    'Region XI: Davao Region': 'Region XI (Davao Region)',
+    'Region XII: SOCCSKSARGEN': 'Region XII (SOCCSKSARGEN)',
+    'Region XIII: Caraga': 'Region XIII (Caraga)',
+    'NCR: National Capital Region (Metro Manila)': 'National Capital Region (NCR)',
+    'NCR: National Capital Region': 'National Capital Region (NCR)',
+    'National Capital Region': 'National Capital Region (NCR)',
+    'CAR: Cordillera Administrative Region': 'Cordillera Administrative Region (CAR)',
+    'Autonomous Region in Muslim Mindanao': 'Autonomous Region in Muslim Mindanao (ARMM)',
+    'Bangsamoro Autonomous Region in Muslim Mindanao': 'Autonomous Region in Muslim Mindanao (ARMM)',
+  };
+
+  return aliasMap[normalized] || normalized;
+};
+
 ChartJS.register(...registerables);
+
+// Normalize status strings coming from edit forms (e.g. "On-going" vs "Ongoing")
+const normalizeStatus = (remarks) => {
+  if (!remarks) return '';
+  const r = remarks.toString().toLowerCase().replace(/[-\s]/g, '');
+  if (r.includes('ongoing') || r === 'ongoing') return 'Ongoing';
+  if (r.includes('new')) return 'New';
+  if (r.includes('completed') || r.includes('complete')) return 'Completed';
+  if (r.includes('cleared')) return 'Cleared';
+  if (r.includes('interminat') || r.includes('interminated')) return 'Interminated';
+  if (r.includes('terminated')) return 'Terminated';
+  return remarks;
+};
 
 const Dashboard = () => {
   const [info, setInfo] = useState([]);
   const [proposals, setProposals] = useState([]);
+  const [indirectSummaryTotals, setIndirectSummaryTotals] = useState({
+    totalReleases: 0,
+    totalObligation: 0,
+    runningBalance: 0,
+    forPayment: 0,
+    anticipatedBalance: 0,
+  });
   const mapContainerRef = useRef(null);
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedYearsProposal, setSelectedYearsProposal] = useState([]);
   const [filteredInfo, setFilteredInfo] = useState([]);
   const [filteredProposals, setFilteredProposals] = useState([]);
   const [selectedFilters, setSelectedFilters] = useState([]);
+  const [selectedRegionFilters, setSelectedRegionFilters] = useState([]);
   const [ispOptions, setIspOptions] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN?.trim();
+  const hasValidMapboxToken = Boolean(mapboxToken?.startsWith('pk.') && mapboxToken.length > 30);
+
+  // Handle responsive breakpoints
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const navigate = useNavigate();
 
   useEffect(() => {
     getInfo();
     getProposal();
+    getIndirectCostSummary();
   }, []);
 
   useEffect(() => {
@@ -63,10 +133,14 @@ const Dashboard = () => {
     animateChart();
 
     return () => clearTimeout(animationTimeout);
-  }, [info]);
+  }, [info, selectedRegionFilters]);
 
   const initializeMap = () => {
-    mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN;
+    if (!hasValidMapboxToken || !mapContainerRef.current) {
+      return;
+    }
+
+    mapboxgl.accessToken = mapboxToken;
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: 'mapbox://styles/mapbox/streets-v12',
@@ -74,12 +148,18 @@ const Dashboard = () => {
       zoom: 5,
     });
 
-    const filteredProjects = info.filter(project => project.remarks !== "Terminated");
+    const filteredProjects = info
+      .filter(project => normalizeStatus(project.status || project.remarks) !== "Terminated")
+      .filter(project => {
+        if (!selectedRegionFilters || selectedRegionFilters.length === 0) return true;
+        return selectedRegionFilters.includes(normalizeRegionLabel(project.region || project.releaseData?.regionIA));
+      });
 
-    const regionToDisplay = filteredProjects.map(project => project.releaseData.regionIA);
+    const regionToDisplay = filteredProjects.map(project => normalizeRegionLabel(project.region || project.releaseData?.regionIA));
 
     const projectsCount = {};
     regionToDisplay.forEach(region => {
+      if (!region) return;
       projectsCount[region] = (projectsCount[region] || 0) + 1;
     });
 
@@ -123,8 +203,35 @@ const Dashboard = () => {
     setProposals(info.data);
   };
 
+  const getIndirectCostSummary = async () => {
+    try {
+      const response = await axios.get('http://localhost:8080/IndirectCostSummary');
+      const data = Array.isArray(response.data) ? response.data : [];
+      const totals = data.reduce(
+        (acc, row) => ({
+          totalReleases: acc.totalReleases + Number(row.totalReleases || 0),
+          totalObligation: acc.totalObligation + Number(row.totalObligation || 0),
+          runningBalance: acc.runningBalance + Number(row.runningBalance || 0),
+          forPayment: acc.forPayment + Number(row.forPayment || 0),
+          anticipatedBalance: acc.anticipatedBalance + (Number(row.runningBalance || 0) - Number(row.forPayment || 0)),
+        }),
+        {
+          totalReleases: 0,
+          totalObligation: 0,
+          runningBalance: 0,
+          forPayment: 0,
+          anticipatedBalance: 0,
+        }
+      );
+      setIndirectSummaryTotals(totals);
+    } catch (error) {
+      console.error('Error loading Indirect Cost Summary totals:', error);
+    }
+  };
+
   const refreshData = () => {
     getInfo();
+    getIndirectCostSummary();
   };
 
   const clearFilter = () => {
@@ -196,14 +303,18 @@ const Dashboard = () => {
   let newProjects = [];
   let completedProjects = [];
   let terminatedProjects = [];
+  let clearedProjects = [];
+  let interminatedProjects = [];
   let totalProjects = [];
 
   if (info.length > 0) {
     totalProjects = info.length;
-    ongoingProjects = info.filter((project) => project.remarks === 'Ongoing');
-    newProjects = info.filter((project) => project.remarks === 'New');
-    completedProjects = info.filter((project) => project.remarks === 'Completed');
-    terminatedProjects = info.filter((project) => project.remarks === 'Terminated');
+    ongoingProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Ongoing');
+    newProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'New');
+    completedProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Completed');
+    terminatedProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Terminated');
+    clearedProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Cleared');
+    interminatedProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Interminated');
   }
 
   let totalProposals = 0;
@@ -222,6 +333,24 @@ const Dashboard = () => {
     revisionProposals = proposals.filter((project) => project.remarks === 'Revision');
   }
 
+  // Proposal category counts sourced from localStorage (Concept, Fullblown, IDD)
+  const conceptProposals = (() => {
+    try { return JSON.parse(localStorage.getItem('conceptProposals') || '[]'); } catch { return []; }
+  })();
+  const fullblownProposals = (() => {
+    try { return JSON.parse(localStorage.getItem('fullblownProposals') || '[]'); } catch { return []; }
+  })();
+  const iddProposals = (() => {
+    try { return JSON.parse(localStorage.getItem('iddProposals') || '[]'); } catch { return []; }
+  })();
+
+  const conceptCount = conceptProposals.length;
+  const fullblownCount = fullblownProposals.length;
+  const iddCount = iddProposals.length;
+
+  // Combined total: prefer API totalProposals, but if it's zero use sum of local categories
+  const combinedTotal = (totalProposals && totalProposals > 0) ? totalProposals : (conceptCount + fullblownCount + iddCount);
+
   const truncateLabel = (label, maxLength) => {
     if (label.length > maxLength) {
       return label.substring(0, maxLength) + '...';
@@ -230,30 +359,124 @@ const Dashboard = () => {
   };
 
   const pieChartDataProposals = {
-    labels: ['Approved', 'Disapproved', 'Resubmission', 'Under Evaluation', 'Revision'],
+    labels: ['Concept', 'Fullblown', 'IDD'],
     datasets: [{
       data: [
-        approvedProposals.length,
-        disapprovedProposals.length,
-        resubmissionProposals.length,
-        underEvaluationProposals.length,
-        revisionProposals.length
+        conceptCount,
+        fullblownCount,
+        iddCount
       ],
-      backgroundColor: ['#7CC674', '#C9190B', '#EF9234', '#519DE9', '#8481DD'],
-      hoverBackgroundColor: ['#4CB140', '#A30000', '#EC7A08', '#06C', '#5752D1']
+      backgroundColor: ['#519DE9', '#7E57C2', '#4CAF50'],
+      hoverBackgroundColor: ['#06C', '#6A1B9A', '#2E7D32']
     }]
   };
 
+  // Build status distribution for Concept Proposals (for adjacent chart)
+  const conceptStatusCounts = conceptProposals.reduce((acc, cur) => {
+    const s = (cur.status || cur.remarks || 'Unspecified');
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+  const conceptStatusLabels = Object.keys(conceptStatusCounts);
+  const conceptStatusData = conceptStatusLabels.map(l => conceptStatusCounts[l]);
+  const statusColorMap = {
+    'Approved': '#7CC674',
+    'Disapproved': '#C9190B',
+    'Resubmission': '#EF9234',
+    'Under Evaluation': '#519DE9',
+    'Revision': '#8481DD',
+    'Endorsed': '#4CAF50',
+    'For revision': '#F6D173',
+    'Other': '#90A4AE',
+    'Unspecified': '#BDBDBD'
+  };
+  const conceptStatusColors = conceptStatusLabels.map(l => statusColorMap[l] || '#90A4AE');
+  const pieChartDataConceptStatus = {
+    labels: conceptStatusLabels,
+    datasets: [{ data: conceptStatusData, backgroundColor: conceptStatusColors }]
+  };
+
+  const normalizeFullblownStatus = (value) => {
+    const status = (value || '').toString().trim();
+    if (!status || status.toLowerCase() === 'unspecified') {
+      return null;
+    }
+    return status;
+  };
+
+  const normalizeIddStatus = (value) => {
+    const status = (value || '').toString().trim();
+    if (!status) return 'Other';
+    const lower = status.toLowerCase();
+    if (lower.includes('endorse')) return 'Endorsed';
+    if (lower.includes('revision')) return 'For revision';
+    if (lower === 'for evaluation' || lower === 'for evaluation ') return 'Other';
+    return 'Other';
+  };
+
+  // Fullblown proposal status distribution
+  const fullblownStatusCounts = fullblownProposals.reduce((acc, cur) => {
+    const status = normalizeFullblownStatus(cur.status || cur.remarks);
+    if (!status) return acc;
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  const fullblownStatusLabels = Object.keys(fullblownStatusCounts);
+  const fullblownStatusData = fullblownStatusLabels.map(l => fullblownStatusCounts[l]);
+  const fullblownStatusColors = fullblownStatusLabels.map(l => statusColorMap[l] || '#90A4AE');
+  const pieChartDataFullblownStatus = {
+    labels: fullblownStatusLabels,
+    datasets: [{ data: fullblownStatusData, backgroundColor: fullblownStatusColors }]
+  };
+
+  // IDD proposal status distribution
+  const iddStatusCounts = iddProposals.reduce((acc, cur) => {
+    const status = normalizeIddStatus(cur.status || cur.remarks);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  const iddStatusLabels = Object.keys(iddStatusCounts);
+  const iddStatusData = iddStatusLabels.map(l => iddStatusCounts[l]);
+  const iddStatusColors = iddStatusLabels.map(l => statusColorMap[l] || '#90A4AE');
+  const pieChartDataIddStatus = {
+    labels: iddStatusLabels,
+    datasets: [{ data: iddStatusData, backgroundColor: iddStatusColors }]
+  };
+
   const pieChartData = {
-    labels: ['Ongoing', 'New', 'Completed'],
+    labels: ['Ongoing', 'New', 'Completed', 'Cleared', 'Interminated', 'Terminated'],
     datasets: [{
-      data: [ongoingProjects.length, newProjects.length, completedProjects.length],
-      backgroundColor: ['#519DE9', '#F6D173', '#7CC674'],
-      hoverBackgroundColor: ['#06C', '#F4C145', '#4CB140']
+      data: [
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'Ongoing').length,
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'New').length,
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'Completed').length,
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'Cleared').length,
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'Interminated').length,
+        info.filter(p => normalizeStatus(p.status || p.remarks) === 'Terminated').length,
+      ],
+      backgroundColor: ['#519DE9', '#F6D173', '#7CC674', '#00ACC1', '#FFB74D', '#FF8A80'],
+      hoverBackgroundColor: ['#06C', '#F4C145', '#4CB140', '#00B2C6', '#FF9b21', '#FF6F61']
+    }]
+  };
+
+  const indirectCostPieData = {
+    labels: ['Total Releases', 'Total Obligation/Expenses', 'Running Balance', 'For Payment', 'Anticipated Balance'],
+    datasets: [{
+      data: [
+        indirectSummaryTotals.totalReleases,
+        indirectSummaryTotals.totalObligation,
+        indirectSummaryTotals.runningBalance,
+        indirectSummaryTotals.forPayment,
+        indirectSummaryTotals.anticipatedBalance,
+      ],
+      backgroundColor: ['#519DE9', '#F6D173', '#7CC674', '#FF8A65', '#9C27B0'],
+      hoverBackgroundColor: ['#06C', '#F4C145', '#4CB140', '#FF5722', '#7B1FA2']
     }]
   };
 
   const options = {
+    responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       tooltip: {
         callbacks: {
@@ -280,18 +503,20 @@ const Dashboard = () => {
   };
 
   const option = {
+    responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: true // Hide the legend
+        display: true
+      }
+    },
+    scales: {
+      x: {
+        stacked: true
       },
-      scales: {
-        x: {
-          stacked: true // Stack bars on the x-axis
-        },
-        y: {
-          stacked: true // Stack bars on the y-axis
-        }
-      },
+      y: {
+        stacked: true
+      }
     }
   };
 
@@ -311,15 +536,16 @@ const Dashboard = () => {
     info.forEach((project) => {
       const isp = project.ISP;
       // Check if the project matches any selected filters
-      if (isp && isp.includes('Inland Biodiversity') && (selectedFilters.length === 0 || selectedFilters.some(filter => isp.includes(filter)))) {
-        if (project.remarks === 'New') {
-          inlandData.new += 1;
-        } else if (project.remarks === 'Ongoing') {
-          inlandData.ongoing += 1;
-        } else if (project.remarks === 'Completed') {
-          inlandData.completed += 1;
+        if (isp && isp.includes('Inland Biodiversity') && (selectedFilters.length === 0 || selectedFilters.some(filter => isp.includes(filter)))) {
+          const status = normalizeStatus(project.status || project.remarks);
+          if (status === 'New') {
+            inlandData.new += 1;
+          } else if (status === 'Ongoing') {
+            inlandData.ongoing += 1;
+          } else if (status === 'Completed') {
+            inlandData.completed += 1;
+          }
         }
-      }
     });
     return inlandData;
   };
@@ -331,14 +557,15 @@ const Dashboard = () => {
         // Exclude Inland Biodiversity from ISP per data
         if (isp && !isp.includes('Inland Biodiversity')) {
             if (!ispData[isp]) {
-                ispData[isp] = { new: 0, ongoing: 0, completed: 0 };
+              ispData[isp] = { new: 0, ongoing: 0, completed: 0 };
             }
-            if (project.remarks === 'New') {
-                ispData[isp].new += 1;
-            } else if (project.remarks === 'Ongoing') {
-                ispData[isp].ongoing += 1;
-            } else if (project.remarks === 'Completed') {
-                ispData[isp].completed += 1;
+            const status = normalizeStatus(project.status || project.remarks);
+            if (status === 'New') {
+              ispData[isp].new += 1;
+            } else if (status === 'Ongoing') {
+              ispData[isp].ongoing += 1;
+            } else if (status === 'Completed') {
+              ispData[isp].completed += 1;
             }
         }
     });
@@ -451,7 +678,7 @@ const Dashboard = () => {
   const calculateNewBudgetOverallTotal = () => {
     let overallTotal = 0;
 
-    const newProjects = info.filter((project) => project.remarks === 'New');
+    const newProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'New');
     newProjects.forEach(project => {
       if (project.totalBudget) {
         overallTotal += parseFloat(project.totalBudget.replace(/,/g, ''));
@@ -464,7 +691,7 @@ const Dashboard = () => {
   const calculateOngoingBudgetOverallTotal = () => {
     let overallTotal = 0;
 
-    const newProjects = info.filter((project) => project.remarks === 'Ongoing');
+    const newProjects = info.filter((project) => normalizeStatus(project.status || project.remarks) === 'Ongoing');
     newProjects.forEach(project => {
       if (project.totalBudget) {
         overallTotal += parseFloat(project.totalBudget.replace(/,/g, ''));
@@ -535,7 +762,7 @@ const Dashboard = () => {
     const projectsByStatusAndAgency = {};
 
     info.forEach((project) => {
-      const status = project.remarks;
+      const status = normalizeStatus(project.status || project.remarks);
       const agency = project.implementingAgency;
 
       if (status !== 'Terminated' && agency) { // Exclude terminated projects and projects without an agency
@@ -554,10 +781,14 @@ const Dashboard = () => {
     const projectsByRegionAndStatus = {};
 
     info.forEach((project) => {
-      const status = project.remarks;
-      const region = project.releaseData.regionIA;
+      const status = normalizeStatus(project.status || project.remarks);
+      const region = normalizeRegionLabel(project.region || project.releaseData?.regionIA);
 
       if (status !== 'Terminated' && region) { // Exclude terminated projects and projects without a region
+        if (selectedRegionFilters && selectedRegionFilters.length > 0 && !selectedRegionFilters.includes(region)) {
+          return;
+        }
+
         if (!projectsByRegionAndStatus[region]) {
           projectsByRegionAndStatus[region] = { New: 0, Ongoing: 0, Completed: 0 };
         }
@@ -573,11 +804,15 @@ const Dashboard = () => {
     const budgetByRegionAndStatus = {};
 
     info.forEach((project) => {
-      const status = project.remarks;
-      const region = project.releaseData.regionIA;
+      const status = normalizeStatus(project.status || project.remarks);
+      const region = normalizeRegionLabel(project.region || project.releaseData?.regionIA);
       const budget = project.totalBudget ? parseFloat(project.totalBudget.replace(/,/g, '')) : 0;
 
       if (status !== 'Terminated' && region) { // Exclude terminated projects and projects without a region
+        if (selectedRegionFilters && selectedRegionFilters.length > 0 && !selectedRegionFilters.includes(region)) {
+          return;
+        }
+
         if (!budgetByRegionAndStatus[region]) {
           budgetByRegionAndStatus[region] = { New: 0, Ongoing: 0, Completed: 0 };
         }
@@ -598,7 +833,7 @@ const Dashboard = () => {
   const completedCounts = agencyLabels.map((agency) => projectsByStatusAndAgency[agency].Completed);
 
   // Use truncateLabel function to truncate long labels
-  const truncatedLabels = agencyLabels.map(label => truncateLabel(label));
+  const truncatedLabels = agencyLabels.map(label => truncateLabel(label, 30));
 
   const barChartData = {
     labels: truncatedLabels,
@@ -606,16 +841,61 @@ const Dashboard = () => {
       {
         label: 'New',
         data: newCounts,
+        backgroundColor: '#F6D173',
+        hoverBackgroundColor: '#F4C145',
+        barThickness: 12,
       },
       {
         label: 'Ongoing',
         data: ongoingCounts,
+        backgroundColor: '#519DE9',
+        hoverBackgroundColor: '#06C',
+        barThickness: 12,
       },
       {
         label: 'Completed',
         data: completedCounts,
+        backgroundColor: '#7CC674',
+        hoverBackgroundColor: '#4CB140',
+        barThickness: 12,
       },
     ],
+  };
+
+  // Restore vertical bars but improve label handling and tooltips
+  const agencyOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'bottom' },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          title: (contexts) => {
+            // show full agency name in tooltip title using original agencyLabels
+            if (!contexts || !contexts.length) return '';
+            const idx = contexts[0].dataIndex;
+            return agencyLabels[idx] || contexts[0].label;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          autoSkip: true,
+          maxRotation: 45,
+          minRotation: 45,
+          precision: 0,
+        }
+      },
+      y: {
+        ticks: { precision: 0 }
+      }
+    },
+    elements: { bar: { borderWidth: 0, maxBarThickness: 24 } }
   };
 
 
@@ -654,11 +934,11 @@ const Dashboard = () => {
   const calculateRegionWiseProjects = () => {
     const regionProjects = {};
     info.forEach((project) => {
-      if (project.remarks !== 'Terminated') {
-        const region = project.releaseData.regionIA;
-        if (region) {
-          regionProjects[region] = (regionProjects[region] || 0) + 1;
-        }
+      if (normalizeStatus(project.status || project.remarks) !== 'Terminated') {
+        const region = normalizeRegionLabel(project.region || project.releaseData?.regionIA);
+        if (!region) return;
+        if (selectedRegionFilters && selectedRegionFilters.length > 0 && !selectedRegionFilters.includes(region)) return;
+        regionProjects[region] = (regionProjects[region] || 0) + 1;
       }
     });
     return regionProjects;
@@ -667,7 +947,7 @@ const Dashboard = () => {
   const regionProjects = calculateRegionWiseProjects();
 
   return (
-    <article className='pt-5 pb-5 pe-5'>
+    <article className={`dashboard-container pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
 
       <div className="d-flex justify-content-between align-items-center">
         <label className='h4 py-2 fw-bold'>Dashboard</label>
@@ -729,78 +1009,94 @@ const Dashboard = () => {
 
       <div className='row pb-4'>
         <div className='col-lg-4'>
-          <div className='row row-cols-lg-2 g-3 pt-4'>
-            <div className='col-lg-12'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{totalProjects}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total Projects</p>
-                    </div>
+          <div className='dashboard-summary-row pt-4'>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{totalProjects}</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total Projects</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#E1F5FE', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-arrows-rotate fs-5 p-1' style={{ color: '#03A9F4' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{ongoingProjects.length} ({((ongoingProjects.length / totalProjects) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Ongoing</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E1F5FE', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-arrows-rotate fs-5 p-1' style={{ color: '#03A9F4' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{ongoingProjects.length} ({((ongoingProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Ongoing</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#FFF3E0', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-regular fa-square-plus fs-5 p-1' style={{ color: '#FF9800' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{newProjects.length} ({((newProjects.length / totalProjects) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>New</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#FFF3E0', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-regular fa-square-plus fs-5 p-1' style={{ color: '#FF9800' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{newProjects.length} ({((newProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>New</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#E8F5E9', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-regular fa-circle-check fs-5 p-1' style={{ color: '#4CAF50' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{completedProjects.length} ({((completedProjects.length / totalProjects) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Completed</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E8F5E9', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-regular fa-circle-check fs-5 p-1' style={{ color: '#4CAF50' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{completedProjects.length} ({((completedProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Completed</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#FFEBEE', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-ban fs-5 p-1' style={{ color: '#F44336' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{terminatedProjects.length} ({((terminatedProjects.length / totalProjects) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Terminated</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E0F7FA', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-broom fs-5 p-1' style={{ color: '#00ACC1' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{clearedProjects.length} ({((clearedProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Cleared</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#FFF0F4', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-hourglass-half fs-5 p-1' style={{ color: '#FF6F61' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{interminatedProjects.length} ({((interminatedProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Interminated</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#FFEBEE', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-ban fs-5 p-1' style={{ color: '#F44336' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{terminatedProjects.length} ({((terminatedProjects.length / totalProjects) * 100).toFixed()}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Terminated</p>
                   </div>
                 </div>
               </div>
@@ -813,7 +1109,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">New, Ongoing, and Completed Programs/Projects</h6>
-                  <div className="d-inline-block" style={{ minWidth: '60%', maxHeight: '289px' }}>
+                  <div className="dashboard-chart" style={{ width: '100%', height: '260px' }}>
                     <Pie data={pieChartData} options={options} />
                   </div>
                 </div>
@@ -823,7 +1119,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">New, Ongoing, and Completed Programs/Projects</h6>
-                  <div className="d-inline-block" style={{ minWidth: '60%', maxHeight: '289px' }}>
+                  <div className="dashboard-chart" style={{ width: '100%', height: '260px' }}>
                     <Doughnut data={pieChartData} options={options} />
                   </div>
                 </div>
@@ -842,7 +1138,7 @@ const Dashboard = () => {
             <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                     <h6 className="card-title fw-bold text-start">New, Ongoing, and Completed Programs/Projects per ISP</h6>
-                    <div className="d-inline-block" style={{ minWidth: '60%' }}>
+                    <div className="dashboard-chart" style={{ width: '100%' }}>
                         <Pie data={ispChartData} options={options} />
                     </div>
                 </div>
@@ -856,7 +1152,7 @@ const Dashboard = () => {
                         <div className="card radius-10 border p-2 h-100">
                             <div className="card-body text-center">
                                 <h6 className="card-title fw-bold text-start">{isp}</h6>
-                                <div className="d-inline-block" style={{ minWidth: '64%' }}>
+                                <div className="dashboard-chart" style={{ width: '100%' }}>
                                     <Pie data={generateChartData(remarks)} options={options} />
                                 </div>
                             </div>
@@ -870,10 +1166,9 @@ const Dashboard = () => {
 
 <div className="col-lg-3 col-md-4 col-sm-6">
     <div className="card radius-10 border p-2 h-100">
-      <div className="card-body text-center">
-        <h6 className="card-title fw-bold text-start d-flex justify-content-between align-items-center">
-          Inland Biodiversity
-          {/* Filter Button with Dropdown */}
+      <div className="card-body">
+        <div className="d-flex justify-content-between align-items-start flex-wrap mb-3">
+          <h6 className="card-title fw-bold mb-0">Inland Biodiversity</h6>
           <div className="dropdown" style={{ fontWeight: 'normal' }}>
             <button
               type="button"
@@ -903,21 +1198,15 @@ const Dashboard = () => {
               ))}
             </ul>
           </div>
-        </h6>
+        </div>
 
         {/* Pie Chart */}
-        <div className="d-inline-block" style={{ minWidth: '64%' }}>
+        <div className="dashboard-chart" style={{ width: '100%', height: '260px' }}>
           <Pie data={generateInlandChartData()} options={options} />
         </div>
       </div>
     </div>
   </div>
-      </div>
-
-        <div className="col">
-
-        </div>
-        <div className="col">
 
         </div>
       </div>
@@ -933,14 +1222,14 @@ const Dashboard = () => {
           <div className='row g-3 pt-4'>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-5 fw-bold'>{calculateBudgetOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Total Budget</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Overall Total Budget</p>
                     </div>
                   </div>
                 </div>
@@ -954,7 +1243,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">Total Budget per ISP</h6>
-                  <div className="d-inline-block" style={{ minWidth: '100%' }}>
+                  <div className="dashboard-chart" style={{ width: '100%' }}>
                     <Line data={lineChartData} options={option} />
                   </div>
                 </div>
@@ -964,7 +1253,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">Total Budget per ISP</h6>
-                  <div className="d-inline-block" style={{ minWidth: '100%' }}>
+                  <div className="dashboard-chart" style={{ width: '100%' }}>
                     <Bar data={lineChartData} options={option} />
                   </div>
                 </div>
@@ -986,14 +1275,14 @@ const Dashboard = () => {
           <div className='row'>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#E0F2F1', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#009688' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-5 fw-bold'>{calculateBudgetOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Overall Total Budget</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Overall Total Budget</p>
                     </div>
                   </div>
                 </div>
@@ -1001,14 +1290,14 @@ const Dashboard = () => {
             </div>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#E1F5FE', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-solid fa-arrows-rotate fs-5 p-1' style={{ color: '#03A9F4' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-5 fw-bold'>{calculateProgrammedOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total Programmed Budget</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total Programmed Budget</p>
                     </div>
                   </div>
                 </div>
@@ -1016,14 +1305,14 @@ const Dashboard = () => {
             </div>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#FFF3E0', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-regular fa-square-plus fs-5 p-1' style={{ color: '#FF9800' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-4 fw-bold'>{calculateActualOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total Actual Releases</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total Actual Releases</p>
                     </div>
                   </div>
                 </div>
@@ -1031,14 +1320,14 @@ const Dashboard = () => {
             </div>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#E8F5E9', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-regular fa-circle-check fs-5 p-1' style={{ color: '#4CAF50' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-4 fw-bold'>{calculateNewBudgetOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total for New</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total for New</p>
                     </div>
                   </div>
                 </div>
@@ -1046,14 +1335,14 @@ const Dashboard = () => {
             </div>
             <div className='col'>
               <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
                   <div className='d-flex align-items-center'>
                     <div className='' style={{ backgroundColor: '#FFEBEE', borderRadius: '50px', padding: '10px' }}>
                       <i className='fa-solid fa-ban fs-5 p-1' style={{ color: '#F44336' }}></i>
                     </div>
-                    <div className='ps-4 text-truncate'>
+                    <div className='ps-4'>
                       <p className='mb-0 text-dark fs-5 fw-bold'>{calculateOngoingBudgetOverallTotal().toLocaleString()}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total for Ongoing</p>
+                      <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total for Ongoing</p>
                     </div>
                   </div>
                 </div>
@@ -1067,7 +1356,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">Sum of Releases</h6>
-                  <div className="d-inline-block" style={{ minWidth: '100%' }}>
+                  <div className="dashboard-chart" style={{ width: '100%' }}>
                     <Bar data={sumOfReleasesData1} options={option} />
                   </div>
                 </div>
@@ -1077,7 +1366,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">Sum of Releases</h6>
-                  <div className="d-inline-block" style={{ minWidth: '100%' }}>
+                  <div className="dashboard-chart" style={{ width: '100%' }}>
                     <Bar data={sumOfReleasesData2} options={option} />
                   </div>
                 </div>
@@ -1099,8 +1388,8 @@ const Dashboard = () => {
           <div className="card radius-10 border p-2">
             <div className="card-body text-center">
               <h6 className="card-title fw-bold text-start">For New, Ongoing, and Completed Programs/Projects</h6>
-              <div className="d-inline-block" style={{ minWidth: '100%' }}>
-                <Bar data={barChartData} options={option} />
+              <div className="dashboard-chart" style={{ width: '100%' }}>
+                <Bar data={barChartData} options={agencyOptions} />
               </div>
             </div>
           </div>
@@ -1109,7 +1398,7 @@ const Dashboard = () => {
           <div className="card radius-10 border p-2">
             <div className="card-body text-center">
               <h6 className="card-title fw-bold text-start">Per Regions</h6>
-              <div className="d-inline-block" style={{ minWidth: '100%' }}>
+              <div className="dashboard-chart" style={{ width: '100%' }}>
                 <Bar data={regionData} options={option} />
               </div>
             </div>
@@ -1121,7 +1410,7 @@ const Dashboard = () => {
           <div className="card radius-10 border p-2">
             <div className="card-body text-center">
               <h6 className="card-title fw-bold text-start">GIA Funding Per Regions</h6>
-              <div className="d-inline-block" style={{ minWidth: '100%' }}>
+              <div className="dashboard-chart" style={{ width: '100%' }}>
                 <Bar data={regionDataWithBudget} options={option} />
               </div>
             </div>
@@ -1132,8 +1421,67 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="d-flex">
-        <h6 className='pt-1 pb-4 fw-bold'>Projects per Regions</h6>
+      <div className='row g-3 pt-2 pb-4'>
+        <div className='col'>
+          <div className='card radius-10 border p-2'>
+            <div className='card-body text-center'>
+              <h6 className='card-title fw-bold text-start'>Indirect Cost Summary Overview</h6>
+              <div className='dashboard-chart' style={{ width: '100%', height: '320px' }}>
+                <Pie data={indirectCostPieData} options={options} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="d-flex justify-content-between align-items-center">
+        <div>
+          <h6 className='pt-1 pb-4 fw-bold'>Projects per Regions</h6>
+          {selectedRegionFilters.length > 0 && (
+            <span className='badge rounded-pill bg-primary'>
+              {selectedRegionFilters.length} selected
+            </span>
+          )}
+        </div>
+        <div className='d-flex align-items-center'>
+          <div className='sample dropdown me-3 regionFilterTooltip' style={{ borderRadius: '50px', padding: '7px 2px 2px 2px' }}>
+            <ReactTooltip anchorSelect='.regionFilterTooltip' style={{ borderRadius: '10px', fontSize: '12px' }}>
+              Filter by region
+            </ReactTooltip>
+            <button id='regionFilterButton' type='button' className='btn border-0' data-bs-toggle='dropdown' aria-expanded='false' data-bs-auto-close='outside'>
+              <i className='fa-solid fa-filter fs-5'></i>
+            </button>
+            <div className='dropdown-menu p-3' aria-labelledby='regionFilterButton' style={{ maxHeight: '420px', overflowY: 'auto' }}>
+              <button type='button' className='dropdown-item fw-bold' onClick={() => setSelectedRegionFilters([])}>
+                All Regions
+              </button>
+              <div className='dropdown-divider' />
+              {Object.keys(regionCoordinates).map(region => (
+                <label key={region} className='dropdown-item d-flex align-items-center mb-1' style={{ cursor: 'pointer' }}>
+                  <input
+                    type='checkbox'
+                    className='form-check-input me-2'
+                    checked={selectedRegionFilters.includes(region)}
+                    onChange={() => {
+                      setSelectedRegionFilters(prev => {
+                        if (prev.includes(region)) {
+                          return prev.filter(item => item !== region);
+                        }
+                        return [...prev, region];
+                      });
+                    }}
+                  />
+                  <span>{region}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {selectedRegionFilters.length > 0 && (
+            <button type='button' className='btn btn-outline-secondary btn-sm' onClick={() => setSelectedRegionFilters([])}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className='row pt-2 pb-4'>
@@ -1168,8 +1516,25 @@ const Dashboard = () => {
             <div className="col">
               <div className="card radius-10 border" style={{ height: '80vh' }}> {/* Set card height */}
                 <div className="card-body p-0" style={{ height: '100%' }}> {/* Ensure card-body fills the card */}
-                  <div className="" style={{ height: '100%', minWidth: '100%' }}> {/* Ensure full width and height */}
-                    <div ref={mapContainerRef} style={{ height: '100%', width: '100%', borderRadius: '10px' }} /> {/* Ensure map container fills the parent */}
+                  <div className="" style={{ height: '100%', width: '100%' }}> {/* Ensure full width and height */}
+                    <div
+                      ref={mapContainerRef}
+                      style={{
+                        height: '100%',
+                        width: '100%',
+                        borderRadius: '10px',
+                        display: hasValidMapboxToken ? 'block' : 'grid',
+                        placeItems: 'center',
+                        padding: '2rem',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {!hasValidMapboxToken && (
+                        <p className="text-muted mb-0">
+                          Add your real Mapbox public token to frontend/.env.local, then restart the frontend.
+                        </p>
+                      )}
+                    </div> {/* Ensure map container fills the parent */}
                   </div>
                 </div>
               </div>
@@ -1234,93 +1599,55 @@ const Dashboard = () => {
 
       <div className='row pt-2 pb-4'>
         <div className='col-lg-4'>
-          <div className='row row-cols-lg-2 g-3 pt-4'>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#EEEEEE', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#ooo' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{totalProposals}</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Total Proposals</p>
-                    </div>
+          <div className='dashboard-summary-row pt-4'>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#EEEEEE', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-equals fs-5 p-1' style={{ color: '#000' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{combinedTotal}</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Total Proposals</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#E8F5E9', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-regular fa-circle-check fs-5 p-1' style={{ color: '#4CAF50' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{approvedProposals.length} ({((approvedProposals.length / totalProposals) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Approved Proposals</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E3F2FD', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-file-lines fs-5 p-1' style={{ color: '#1976D2' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{conceptCount} ({combinedTotal ? ((conceptCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Concept Proposal</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#FFEBEE', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-ban fs-5 p-1' style={{ color: '#F44336' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{disapprovedProposals.length} ({((disapprovedProposals.length / totalProposals) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Disapproved Proposals</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#F3E5F5', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-file-circle-check fs-5 p-1' style={{ color: '#8E24AA' }}></i>
+                  </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{fullblownCount} ({combinedTotal ? ((fullblownCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Fullblown Proposal</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#FFF3E0', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-repeat fs-5 p-1' style={{ color: '#FF9800' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{resubmissionProposals.length} ({((resubmissionProposals.length / totalProposals) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Resubmission Proposals</p>
-                    </div>
+            <div className='dashboard-summary-col'>
+              <div className='card radius-10 border dashboard-summary-card'>
+                <div className='card-body' style={{ padding: isMobile ? '15px' : '25px 20px 25px 35px' }}>
+                  <div className='dashboard-summary-icon' style={{ backgroundColor: '#E8F5E9', borderRadius: '50px', padding: '10px', marginRight: '15px' }}>
+                    <i className='fa-solid fa-file-prescription fs-5 p-1' style={{ color: '#2E7D32' }}></i>
                   </div>
-                </div>
-              </div>
-            </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#E1F5FE', borderRadius: '50px', padding: '10px', paddingInline: '12px' }}>
-                      <i className='fa-solid fa-file-lines fs-5 p-1' style={{ color: '#03A9F4' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{underEvaluationProposals.length} ({((underEvaluationProposals.length / totalProposals) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Under Evaluation Proposals</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className='col'>
-              <div className='card radius-10 border'>
-                <div className='card-body' style={{ padding: '25px 20px 25px 35px' }}>
-                  <div className='d-flex align-items-center'>
-                    <div className='' style={{ backgroundColor: '#EDE7F6', borderRadius: '50px', padding: '10px' }}>
-                      <i className='fa-solid fa-file-pen fs-5 p-1 pe-0' style={{ color: '#7E57C2' }}></i>
-                    </div>
-                    <div className='ps-4 text-truncate'>
-                      <p className='mb-0 text-dark fs-4 fw-bold'>{revisionProposals.length} ({((revisionProposals.length / totalProposals) * 100).toFixed()}%)</p>
-                      <p className='text-secondary h6' style={{ fontSize: '15px' }}>Revision Proposals</p>
-                    </div>
+                  <div className='dashboard-summary-content'>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{iddCount} ({combinedTotal ? ((iddCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>IDD Proposal</p>
                   </div>
                 </div>
               </div>
@@ -1333,7 +1660,7 @@ const Dashboard = () => {
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
                   <h6 className="card-title fw-bold text-start">Proposals</h6>
-                  <div className="d-inline-block" style={{ minWidth: '60%', maxHeight: '289px' }}>
+                  <div className="dashboard-chart" style={{ width: '80%', maxHeight: '180px', margin: '0 auto' }}>
                     <Pie data={pieChartDataProposals} options={options} />
                   </div>
                 </div>
@@ -1342,9 +1669,31 @@ const Dashboard = () => {
             <div className="col">
               <div className="card radius-10 border p-2">
                 <div className="card-body text-center">
-                  <h6 className="card-title fw-bold text-start">Proposals</h6>
-                  <div className="d-inline-block" style={{ minWidth: '60%', maxHeight: '289px' }}>
-                    <Doughnut data={pieChartDataProposals} options={options} />
+                  <h6 className="card-title fw-bold text-start">Concept Proposal</h6>
+                  <div className="dashboard-chart" style={{ width: '70%', maxHeight: '150px', margin: '0 auto' }}>
+                    <Pie data={pieChartDataConceptStatus} options={options} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="row g-3 pt-3">
+            <div className="col">
+              <div className="card radius-10 border p-2">
+                <div className="card-body text-center">
+                  <h6 className="card-title fw-bold text-start">Fullblown Proposal</h6>
+                  <div className="dashboard-chart" style={{ width: '70%', maxHeight: '150px', margin: '0 auto' }}>
+                    <Pie data={pieChartDataFullblownStatus} options={options} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col">
+              <div className="card radius-10 border p-2">
+                <div className="card-body text-center">
+                  <h6 className="card-title fw-bold text-start">IDD Proposal</h6>
+                  <div className="dashboard-chart" style={{ width: '70%', maxHeight: '150px', margin: '0 auto' }}>
+                    <Pie data={pieChartDataIddStatus} options={options} />
                   </div>
                 </div>
               </div>

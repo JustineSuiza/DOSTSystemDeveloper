@@ -5,20 +5,16 @@ import ReactDOM from 'react-dom';
 const Archives = () => {
     const [archiveData, setArchiveData] = useState([]);
 
-    useEffect(() => {
-        // Fetch archived data from the backend when the component mounts
-        fetchArchiveData();
-    }, []);
-
     const fetchArchiveData = async () => {
         try {
-            const response = await axios.get('http://localhost:8080/ArchiveProposals'); // Replace with your actual endpoint
-
-            // Modify the data to set the 'type' value to 'Proposals'
-            const modifiedData = response.data.map(item => ({
-                ...item,
-                type: 'Proposals'
-            }));
+            const [projectsResponse, proposalsResponse] = await Promise.all([
+                axios.get('http://localhost:8080/ArchiveProjects'),
+                axios.get('http://localhost:8080/ArchiveProposals'),
+            ]);
+            const modifiedData = [
+                ...projectsResponse.data.map(item => ({ ...item, type: 'Projects' })),
+                ...proposalsResponse.data.map(item => ({ ...item, type: 'Proposals' })),
+            ];
 
             setArchiveData(modifiedData);
         } catch (error) {
@@ -26,24 +22,84 @@ const Archives = () => {
         }
     };
 
-    const handleDelete = async (id) => {
+    useEffect(() => {
+        // Fetch archived data from the backend when the component mounts
+        fetchArchiveData();
+
+        const handleArchiveUpdated = () => {
+            fetchArchiveData();
+        };
+
+        window.addEventListener('archiveUpdated', handleArchiveUpdated);
+
+        const archiveModal = document.getElementById('archive');
+        if (archiveModal) {
+            archiveModal.addEventListener('show.bs.modal', fetchArchiveData);
+        }
+
+        return () => {
+            window.removeEventListener('archiveUpdated', handleArchiveUpdated);
+            if (archiveModal) {
+                archiveModal.removeEventListener('show.bs.modal', fetchArchiveData);
+            }
+        };
+    }, []);
+
+    const getArchiveKey = (item) => `${item.type}-${item.id}`;
+
+    const handleDelete = async (item, confirmDelete = true) => {
+        if (confirmDelete && !window.confirm(`Permanently delete this archived ${item.type === 'Proposals' ? 'proposal' : 'project'}?`)) {
+            return false;
+        }
+
         try {
-            await axios.delete(`http://localhost:8080/ArchiveProposals/${id}`); // Replace with your actual delete endpoint
+            const endpoint = item?.type === 'Proposals' ? 'ArchiveProposals' : 'ArchiveProjects';
+            await axios.delete(`http://localhost:8080/${endpoint}/${item.id}`);
             // After successful deletion, remove the deleted item from archiveData
-            setArchiveData(prevData => prevData.filter(item => item.id !== id));
+            setArchiveData(prevData => prevData.filter(archiveItem => getArchiveKey(archiveItem) !== getArchiveKey(item)));
+            return true;
         } catch (error) {
             console.error('Error deleting archived data:', error);
+            alert(`Unable to delete this archived item: ${error.response?.data?.messages?.error || error.message}`);
+            return false;
         }
     };
 
     const handleUnarchive = async (item) => {
         try {
-            // Send a POST request to the backend to move the item back to Proposals table
-            await axios.post('http://localhost:8080/Proposals', item); // Replace with your actual endpoint
+            if (item.type === 'Projects') {
+                await axios.post('http://localhost:8080/Projects', {
+                    ...item,
+                    budget: [],
+                });
+                if (!await handleDelete(item, false)) return;
+                window.dispatchEvent(new Event('projectCreated'));
+                window.dispatchEvent(new Event('archiveUpdated'));
+                return;
+            }
+
+            const restoreData = {
+                ISP: item.ISP,
+                programTitle: item.programTitle,
+                projectTitle: item.projectTitle,
+                responsiblePerson: item.responsiblePerson,
+                implementingAgency: item.implementingAgency,
+                programLeader: item.programLeader || '',
+                leadTRD: item.leadTRD,
+                funding: item.funding,
+                quarter: item.quarter,
+                date: item.date,
+                remarks: item.remarks,
+            };
+
+            await axios.post('http://localhost:8080/Proposals', restoreData);
             // After successful unarchiving, delete the item from the archive
-            await handleDelete(item.id);
+            if (!await handleDelete(item, false)) return;
+            window.dispatchEvent(new Event('proposalRestored'));
+            window.dispatchEvent(new Event('archiveUpdated'));
         } catch (error) {
             console.error('Error unarchiving data:', error);
+            alert(`Unable to restore this archived item: ${error.response?.data?.messages?.error || error.message}`);
         }
     };
 
@@ -79,13 +135,13 @@ const Archives = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {archiveData.map((item, index) => (
-                                        <tr key={index}>
+                                    {archiveData.map((item) => (
+                                        <tr key={getArchiveKey(item)}>
                                             <td className='w-50'>{item.projectTitle}</td>
                                             <td>{item.created_at}</td> 
                                             <td>{item.type}</td> 
                                             <td style={{ width: '10px' }}><i className="bi bi-box-arrow-up text-primary" style={{ cursor: 'pointer' }} onClick={() => handleUnarchive(item)}></i></td>
-                                            <td><i className="bi bi-trash-fill text-danger" style={{ cursor: 'pointer' }} onClick={() => handleDelete(item.id)}></i></td>
+                                            <td><i className="bi bi-trash-fill text-danger" style={{ cursor: 'pointer' }} onClick={() => handleDelete(item)}></i></td>
                                         </tr>
                                     ))}
                                 </tbody>

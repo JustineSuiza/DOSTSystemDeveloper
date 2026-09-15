@@ -35,6 +35,22 @@ const Users = ({ sidebarExpanded }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [filterValue, setFilterValue] = useState('');
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Handle responsive breakpoints
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         getUsers();
@@ -177,7 +193,7 @@ const Users = ({ sidebarExpanded }) => {
     
 
     return (
-        <article className='pt-5 pb-5 pe-5'>
+        <article className={`pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
             <EditUserModal 
                 isEditModalOpen={isEditModalOpen}
                 closeModal={() => setIsEditModalOpen(false)}
@@ -213,8 +229,14 @@ const Users = ({ sidebarExpanded }) => {
                 responsive
                 highlightOnHover
                 striped
-                className='pt-5'
-                style={{ paddingLeft: sidebarExpanded ? '300px' : '150px', transition: 'padding-left 0.3s' }}
+                paginationPerPage={isMobile ? 5 : 10}
+                paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 25, 50]}
+                className={!isMobile ? 'pt-5' : ''}
+                style={{ 
+                    paddingLeft: !isMobile && sidebarExpanded ? (isTablet ? '250px' : '300px') : (isMobile ? '0px' : '150px'), 
+                    transition: 'padding-left 0.3s',
+                    fontSize: isMobile ? '12px' : '14px'
+                }}
             />
         </article>
     );

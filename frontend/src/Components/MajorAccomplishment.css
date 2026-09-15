@@ -1,0 +1,7 @@
+.accomp-table-wrapper{max-height:260px;overflow:auto;border:1px solid #eee;border-radius:6px}
+.accomp-table{width:100%;border-collapse:collapse}
+.accomp-table thead th{background:#f5f5f5;padding:10px 12px;border-bottom:1px solid #e6e6e6;text-align:left}
+.accomp-table tbody td{padding:8px 12px;border-bottom:1px solid #f0f0f0}
+.accomp-table .left-header{width:40%}
+.accomp-table input.form-control{border-radius:4px}
+.accomp-table tbody tr:last-child td{border-bottom:0}

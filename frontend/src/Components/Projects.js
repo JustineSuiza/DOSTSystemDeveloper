@@ -18,6 +18,30 @@ import PdfModal from './PdfModal';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
+const ProjectTitleCell = ({ title }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+        <span
+            title={title}
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{
+                display: isExpanded ? 'block' : '-webkit-box',
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: isExpanded ? 'clip' : 'ellipsis',
+                whiteSpace: isExpanded ? 'normal' : undefined,
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: isExpanded ? 'unset' : 3,
+                overflowWrap: 'anywhere',
+                cursor: 'pointer',
+            }}
+        >
+            {title}
+        </span>
+    );
+};
+
 const Projects = ({ sidebarExpanded }) => {
     const [originalInfo, setOriginalInfo] = useState([]);
     const [info, setInfo] = useState([]);
@@ -46,6 +70,22 @@ const Projects = ({ sidebarExpanded }) => {
     const [selectedYear, setSelectedYear] = useState('');
 
     const [isImage, setIsImage] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Handle responsive breakpoints
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const location = useLocation();
     const state = location.state;
@@ -111,6 +151,16 @@ const Projects = ({ sidebarExpanded }) => {
         getInfo();
     }, []);
 
+    useEffect(() => {
+        const handleProjectCreated = () => refreshData();
+        window.addEventListener('projectCreated', handleProjectCreated);
+
+        return () => window.removeEventListener('projectCreated', handleProjectCreated);
+    }, []);
+
+    const getProjectLeader = (row) => row.projectLeader || row.programLeader || '';
+    const getProgramLeader = (row) => row.programLeader || '';
+
     const getInfo = async () => {
         const response = await axios.get('http://localhost:8080/Projects/');
         setOriginalInfo(response.data);
@@ -126,134 +176,22 @@ const Projects = ({ sidebarExpanded }) => {
     };
 
     const handleDeleteClick = (id) => {
-        setIdToDelete(id);
+        if (window.confirm('Are you sure you want to delete this project? All related data will also be deleted.')) {
+            deleteProject(id);
+        }
     };
 
-    // const deleteProduct = async () => {
-    //     try {
-    //         if (idToDelete) {
-    //             console.log('Deleting product with ID:', idToDelete);
-
-    //             // Fetch all records related to the project
-    //             const projectResponse = await axios.get(`http://localhost:8080/Projects/${idToDelete}`);
-    //             const projectData = projectResponse.data;
-    //             console.log('Project Data:');
-
-    //             const releasesResponse = await axios.get(`http://localhost:8080/Releases/${idToDelete}`);
-    //             const releasesData = releasesResponse.data;
-    //             console.log(releasesData)
-
-    //             const counterpartFundResponse = await axios.get(`http://localhost:8080/CounterpartFund/${idToDelete}`);
-    //             const counterpartFundData = counterpartFundResponse.data;
-    //             console.log(counterpartFundData)
-
-    //             // Iterate over each projectData object
-    //             projectData.forEach(async (project) => {
-    //                 try {
-    //                     // Make a POST request for each projectData object
-    //                     const budget = Array.isArray(project.budget) ? project.budget : [];
-    //                     await axios.post('http://localhost:8080/ArchiveProjects', {
-    //                         ISP: project.ISP,
-    //                         programTitle: project.programTitle,
-    //                         projectTitle: project.projectTitle,
-    //                         responsiblePerson: project.responsiblePerson,
-    //                         funding: project.funding,
-    //                         budget: budget.map(item => ({ year: item.year, amount: item.amount })),
-    //                         totalBudget: project.totalBudget,
-    //                         implementingAgency: project.implementingAgency,
-    //                         programLeader: project.programLeader,
-    //                         emailAddress: project.emailAddress,
-    //                         contactNumber: project.contactNumber,
-    //                         postalAddress: project.postalAddress,
-    //                         cooperatingAgency: project.cooperatingAgency,
-    //                         originalStart: project.originalStart,
-    //                         originalEnd: project.originalEnd,
-    //                         objectives: project.objectives,
-    //                         description: project.description,
-    //                         deliverables: project.deliverables,
-    //                         beneficiaries: project.beneficiaries,
-    //                         status: project.status,
-    //                         remarks: project.remarks,
-    //                     });
-
-    //                     // Handle success or perform additional tasks
-    //                     console.log('Project archived successfully:', project);
-    //                 } catch (error) {
-    //                     console.error('Error archiving project:', error);
-    //                 }
-    //             });
-    //             projectData.forEach(async (project) => {
-    //                 try {
-    //                     // Make a POST request for each projectData object
-    //                     const budget = Array.isArray(project.budget) ? project.budget : [];
-    //                     await axios.patch(`http://localhost:8080/ArchiveProjects/${idToDelete}`, {
-    //                         ISP: project.ISP,
-    //                         programTitle: project.programTitle,
-    //                         projectTitle: project.projectTitle,
-    //                         responsiblePerson: project.responsiblePerson,
-    //                         funding: project.funding,
-    //                         budget: budget.map(item => ({ year: item.year, amount: item.amount })),
-    //                         totalBudget: project.totalBudget,
-    //                         implementingAgency: project.implementingAgency,
-    //                         programLeader: project.programLeader,
-    //                         emailAddress: project.emailAddress,
-    //                         contactNumber: project.contactNumber,
-    //                         postalAddress: project.postalAddress,
-    //                         cooperatingAgency: project.cooperatingAgency,
-    //                         originalStart: project.originalStart,
-    //                         originalEnd: project.originalEnd,
-    //                         changeStart: project.changeStart,
-    //                         changeImplementationDate: project.changeImplementationDate,
-    //                         firstExtension: project.firstExtension,
-    //                         secondExtension: project.secondExtension,
-    //                         objectives: project.objectives,
-    //                         description: project.description,
-    //                         deliverables: project.deliverables,
-    //                         beneficiaries: project.beneficiaries,
-    //                         dcY1Approval: project.dcY1Approval,
-    //                         gcY1Approval: project.gcY1Approval,
-    //                         execomY1Approval: project.execomY1Approval,
-    //                         dcY2Renewal: project.dcY2Renewal,
-    //                         gcY2Renewal: project.gcY2Renewal,
-    //                         execomY2Renewal: project.execomY2Renewal,
-    //                         dcY3Renewal: project.dcY3Renewal,
-    //                         gcY3Renewal: project.gcY3Renewal,
-    //                         execomY3Renewal: project.execomY3Renewal,
-    //                         inceptionMeeting: project.inceptionMeeting,
-    //                         mande: project.mande,
-    //                         y1BudgetRealignment: project.y1BudgetRealignment,
-    //                         y2BudgetRealignment: project.y2BudgetRealignment,
-    //                         y3BudgetRealignment: project.y3BudgetRealignment,
-    //                         programReview: project.programReview,
-    //                         terminalReview: project.terminalReview,
-    //                         status: project.status,
-    //                         remarks: project.remarks,
-    //                     });
-
-    //                     // Handle success or perform additional tasks
-    //                     console.log('Project archived successfully:', project);
-    //                 } catch (error) {
-    //                     console.error('Error archiving project:', error);
-    //                 }
-    //             });
-    //             await axios.patch('http://localhost:8080/ArchiveReleases', releasesData);
-    //             await axios.patch('http://localhost:8080/ArchiveCounterpartFund', counterpartFundData);
-
-    //             // Delete related records first
-    //             // await axios.delete(`http://localhost:8080/Releases/${idToDelete}`);
-    //             // await axios.delete(`http://localhost:8080/CounterpartFund/${idToDelete}`);
-
-    //             // // Then delete the project itself
-    //             // await axios.delete(`http://localhost:8080/Projects/${idToDelete}`);
-
-    //             // Refresh data after deletion
-    //             getInfo();
-    //             setIdToDelete(null);
-    //         }
-    //     } catch (error) {
-    //         console.error('Error deleting product:', error);
-    //     }
-    // };
+    const deleteProject = async (id) => {
+        try {
+            await axios.delete(`http://localhost:8080/Projects/${id}`);
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
+            getInfo();
+        } catch (error) {
+            console.error('Error deleting project:', error);
+            alert('Error deleting project: ' + error.message);
+        }
+    };
 
     const getProposalEndDate = (proposal) => {
         if (proposal.secondExtension) {
@@ -341,22 +279,29 @@ const Projects = ({ sidebarExpanded }) => {
     );
 
 
+    const normalizeStatus = (value) => {
+        if (!value) return '';
+        const normalized = value.toString().toLowerCase().replace(/[-\s]/g, '');
+        if (normalized.includes('ongoing') || normalized === 'ongoing') return 'Ongoing';
+        if (normalized.includes('new')) return 'New';
+        if (normalized.includes('completed') || normalized.includes('complete')) return 'Completed';
+        if (normalized.includes('terminated')) return 'Terminated';
+        return value;
+    };
+
     const applyFilter = (filterData) => {
-        const { ISP, programTitle, responsiblePerson, funding, remarks, originalStart } = filterData;
+        const { ISP, programTitle, responsiblePerson, funding, status } = filterData;
 
         console.log('Filter Data:', filterData);
 
         const filteredData = originalInfo.filter((row) => {
-            const rowStart = new Date(row.changeStart || row.originalStart).getFullYear(); // Use changeStart if available
-
             const matchesISP = !ISP || ISP.length === 0 || ISP.includes(row.ISP);
             const matchesProgramTitle = !programTitle || row.programTitle.toLowerCase().includes(programTitle.toLowerCase());
             const matchesResponsiblePerson = !responsiblePerson || row.responsiblePerson.toLowerCase().includes(responsiblePerson.toLowerCase());
             const matchesFunding = !funding || funding.length === 0 || funding.includes(row.funding);
-            const matchesRemarks = !remarks || remarks.length === 0 || remarks.includes(row.remarks);
-            const matchesYear = !originalStart || originalStart.length === 0 || originalStart.includes(rowStart);
+            const matchesStatus = !status || status.length === 0 || status.includes(normalizeStatus(row.status));
 
-            return matchesISP && matchesProgramTitle && matchesResponsiblePerson && matchesFunding && matchesRemarks && matchesYear;
+            return matchesISP && matchesProgramTitle && matchesResponsiblePerson && matchesFunding && matchesStatus;
         });
 
         console.log('Filtered Data:', filteredData);
@@ -445,78 +390,61 @@ const Projects = ({ sidebarExpanded }) => {
     
 
     const columns = [
-        { name: 'No.', selector: (row, index) => index + 1, sortable: true, width: '80px' },
-        { name: 'ISP', selector: (row) => row.ISP, sortable: true, wrap: true, width: '100px' },
-        { name: 'Program Title', selector: (row) => (<div style={{ height: '100px' }}>{row.programTitle}</div>), sortable: true, wrap: true, width: '180px' },
-        { name: 'Project Title', selector: (row) => (<div style={{ height: '100px' }}>{row.projectTitle}</div>), sortable: true, wrap: true, width: '180px' },
-        { name: (<div>Responsible Person</div>), selector: (row) => row.responsiblePerson, sortable: true, wrap: true, },
-        { name: 'Funding', selector: (row) => row.funding, sortable: true, wrap: true },
-        { name: (<div>Implementing Agency</div>), selector: (row) => row.implementingAgency, sortable: true, wrap: true, },
-        { name: 'Program Leader', selector: (row) => row.programLeader, sortable: true, wrap: true, },
+        { name: 'ISP', selector: (row) => row.ISP, sortable: true, wrap: true, width: '120px', minWidth: '120px' },
         {
-            name: 'Duration',
-            selector: (row) => {
-                let startDate, endDate;
-                if (!row.originalStart || !row.originalEnd) {
-                    return ''; // Handle case where start or end date is missing
-                }
-
-                if (row.changeStart || row.changeImplementationDate) {
-                    startDate = new Date(row.changeStart || row.originalStart);
-                    endDate = new Date(row.changeImplementationDate || row.originalEnd);
-                } else {
-                    startDate = new Date(row.originalStart);
-                    endDate = new Date(row.originalEnd);
-                }
-
-                const formatDateString = (date) => {
-                    return date.toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: '2-digit',
-                        year: 'numeric'
-                    });
-                };
-
-                const startDateString = formatDateString(startDate);
-                const endDateString = formatDateString(endDate);
-
-                let duration = `${startDateString} - ${endDateString}`;
-
-                const appendExtension = (extension) => {
-                    const [extensionStart, extensionEnd] = extension.split(' - ');
-                    const extensionStartDate = new Date(extensionStart);
-                    const extensionEndDate = new Date(extensionEnd);
-                    if (!isNaN(extensionStartDate.getTime()) && !isNaN(extensionEndDate.getTime())) {
-                        const extStartDateString = formatDateString(extensionStartDate);
-                        const extEndDateString = formatDateString(extensionEndDate);
-                        return ` (${extStartDateString} - ${extEndDateString})`;
-                    }
-                    return '';
-                };
-
-                if (row.secondExtension && !(row.changeStart || row.changeImplementationDate) || row.secondExtension && (row.changeStart || row.changeImplementationDate)) {
-                    duration += ` (Second Extension: ${appendExtension(row.secondExtension)})`;
-                } else if (row.firstExtension && !(row.changeStart || row.changeImplementationDate) || row.firstExtension && (row.changeStart || row.changeImplementationDate)) {
-                    duration += ` (First Extension: ${appendExtension(row.firstExtension)})`;
-                }
-
-                return duration;
-            },
+            name: 'Program Title',
+            selector: (row) => row.programTitle ?? '',
+            cell: (row) => <ProjectTitleCell title={row.programTitle ?? ''} />,
             sortable: true,
-            wrap: true,
-            width: '150px'
+            width: '200px',
+            minWidth: '200px',
         },
+        { name: 'Program Leader', selector: (row) => getProgramLeader(row), sortable: true, wrap: true, width: '180px', minWidth: '180px' },
+        { name: 'PALIHAN Code(project)', selector: (row) => row.projectCode ?? '', sortable: true, wrap: true, width: '180px', minWidth: '180px' },
         {
-            name: 'Remarks',
-            selector: (row) => (
-                <div className={`badge p-2 ${row.remarks === 'New' ? 'bg-warning' : row.remarks === 'Ongoing' ? 'bg-primary' : row.remarks === 'Completed' ? 'bg-success' : 'bg-danger'}`}>
-                    {row.remarks}
-                </div>
-            ),
+            name: 'Project Title',
+            selector: (row) => row.projectTitle ?? '',
+            cell: (row) => <ProjectTitleCell title={row.projectTitle ?? ''} />,
             sortable: true,
-            wrap: true,
-            width: '130px'
+            width: '200px',
+            minWidth: '200px',
         },
+        { name: 'Project Leader', selector: (row) => getProjectLeader(row), sortable: true, wrap: true, width: '180px', minWidth: '180px' },
+        {
+            name: 'Implementing Agency',
+            selector: (row) => row.implementingAgency ?? '',
+            cell: (row) => <ProjectTitleCell title={row.implementingAgency ?? ''} />,
+            sortable: true,
+            width: '200px',
+            minWidth: '200px',
+        },
+        { name: 'Funding', selector: (row) => row.funding, sortable: true, wrap: true, width: '150px', minWidth: '150px' },
+        { name: 'TOTAL', cell: (row) => {
+            let total = 0;
+            // Calculate total from budgetArray if available
+            if (row.budgetArray && Array.isArray(row.budgetArray)) {
+                total = row.budgetArray.reduce((acc, curr) => {
+                    const amount = typeof curr.amount === 'string' 
+                        ? parseFloat(curr.amount.replace(/,/g, '')) || 0 
+                        : parseFloat(curr.amount) || 0;
+                    return acc + amount;
+                }, 0);
+            } else if (row.budget && typeof row.budget === 'object') {
+                // Fallback to budget object if budgetArray not available
+                total = Object.keys(row.budget).reduce((acc, year) => {
+                    const amount = typeof row.budget[year] === 'string'
+                        ? parseFloat(row.budget[year].replace(/,/g, '')) || 0
+                        : parseFloat(row.budget[year]) || 0;
+                    return acc + amount;
+                }, 0);
+            } else if (row.totalBudget) {
+                // Last resort: use totalBudget field directly
+                total = parseFloat(String(row.totalBudget).replace(/,/g, '')) || 0;
+            }
+            return <span>{total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>;
+        }, sortable: true, wrap: true, width: '120px', minWidth: '120px' },
+        { name: 'New Implementation Start Date', selector: (row) => row.changeStart, sortable: true, wrap: true, width: '180px', minWidth: '180px' },
+        { name: 'New Implementation End Date', selector: (row) => row.changeImplementationDate, sortable: true, wrap: true, width: '180px', minWidth: '180px' },
         {
             name: 'Actions',
             cell: (row) => (
@@ -592,16 +520,16 @@ const Projects = ({ sidebarExpanded }) => {
                                     </div>
                                 </div>
                             </li>
-                            {/* <li className='m-1 notif-item' style={{ width: '210px' }} data-bs-toggle="modal" data-bs-target="#archiveModal" onClick={() => handleDeleteClick(row.id)}>
+                            <li className='m-1 notif-item' style={{ width: '210px' }} onClick={() => handleDeleteClick(row.id)}>
                                 <div className=" d-flex align-items-center">
                                     <div className='p-1 px-2 pt-1 me-1'>
-                                        <i className="bi bi-archive fs-5 text-danger"></i>
+                                        <i className="bi bi-trash fs-5 text-danger"></i>
                                     </div>
                                     <div className='d-flex flex-column float'>
-                                        <div className='fw-medium text-danger' style={{ fontSize: '13px', paddingTop: '2px' }}>Archive</div>
+                                        <div className='fw-medium text-danger' style={{ fontSize: '13px', paddingTop: '2px' }}>Delete</div>
                                     </div>
                                 </div>
-                            </li> */}
+                            </li>
                         </ul>
                     </div>
                 </>
@@ -620,11 +548,12 @@ const Projects = ({ sidebarExpanded }) => {
             'No.': index + 1,
             'ISP': row.ISP,
             'Program Title': row.programTitle,
+            'Program Leader': getProgramLeader(row),
+            'PALIHAN Code(project)': row.projectCode,
             'Project Title': row.projectTitle,
-            'Responsible Person': row.responsiblePerson,
+            'Project Leader': getProjectLeader(row),
             'Funding': row.funding,
             'Implementing Agency': row.implementingAgency,
-            'Program Leader': row.programLeader,
             'Email Address': row.emailAddress,
             'Contact Number': row.contactNumber,
             'Postal Address': row.postalAddress,
@@ -657,6 +586,7 @@ const Projects = ({ sidebarExpanded }) => {
             'Terminal Review': row.terminalReview,
             'Status': row.status,
             'Remarks': row.remarks,
+            'Project Accomplishments': row.projectAccomplishment,
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -714,6 +644,393 @@ const Projects = ({ sidebarExpanded }) => {
         a.href = url;
         a.download = fileName + fileExtension;
         a.click();
+    };
+
+    const importFromExcel = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // Get all rows as arrays to preserve exact column positions
+                    const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                    
+                    // Find rows: headers, year labels, and data
+                    let headerRow = allRows[0] || [];
+                    let yearLabelRow = null;
+                    let dataStartIndex = 1;
+                    
+                    // Look for the year label row (contains Y1, Y2, Y3, etc.)
+                    for (let i = 1; i < Math.min(10, allRows.length); i++) {
+                        const row = allRows[i];
+                        const hasYearLabels = row.some(cell => /^y\d+$/i.test(String(cell).trim()));
+                        if (hasYearLabels) {
+                            yearLabelRow = row;
+                            dataStartIndex = i + 1;
+                            break;
+                        }
+                    }
+                    
+                    // Build budget column map from year labels
+                    const budgetColumnMap = {}; // { columnIndex: 'Y1', columnIndex: 'Y2', ... }
+                    if (yearLabelRow) {
+                        yearLabelRow.forEach((label, idx) => {
+                            const normalized = String(label).trim().toUpperCase();
+                            if (/^Y\d+$/.test(normalized)) {
+                                budgetColumnMap[idx] = normalized;
+                            }
+                        });
+                    }
+                    
+                    // Build regular column map from header row
+                    const columnMap = {};
+                    headerRow.forEach((header, idx) => {
+                        if (header && String(header).trim() && !budgetColumnMap[idx]) {
+                            columnMap[idx] = String(header).trim();
+                        }
+                    });
+                    
+                    // Extract data rows and build objects
+                    const jsonData = [];
+                    for (let i = dataStartIndex; i < allRows.length; i++) {
+                        const row = allRows[i];
+                        const hasData = row.some(cell => cell && String(cell).trim());
+                        if (!hasData) continue;
+                        
+                        const obj = {};
+                        
+                        // Map regular columns
+                        Object.entries(columnMap).forEach(([idx, header]) => {
+                            obj[header] = row[idx] || '';
+                        });
+                        
+                        // Map budget columns with year labels
+                        Object.entries(budgetColumnMap).forEach(([idx, yearLabel]) => {
+                            obj[yearLabel] = row[idx] || '';
+                        });
+                        
+                        jsonData.push(obj);
+                    }
+
+                    // Helper function to find column by flexible matching
+                    const normalizeHeader = (text) => String(text || '')
+                        .toLowerCase()
+                        .replace(/[\s\-_.()]/g, '');
+
+                    const findColumn = (row, ...possibleNames) => {
+                        const rowKeys = Object.keys(row);
+                        const normalizedRowKeys = rowKeys.map(normalizeHeader);
+
+                        for (let name of possibleNames) {
+                            if (row[name] !== undefined) return row[name];
+
+                            const lowerName = name.toLowerCase();
+                            const foundExact = rowKeys.find(key => key.toLowerCase() === lowerName);
+                            if (foundExact) return row[foundExact];
+
+                            const normalizedName = normalizeHeader(name);
+                            const foundNormalizedExact = normalizedRowKeys.find(key => key === normalizedName);
+                            if (foundNormalizedExact) {
+                                const originalKey = rowKeys[normalizedRowKeys.indexOf(foundNormalizedExact)];
+                                return row[originalKey];
+                            }
+
+                            const foundPartial = rowKeys.find(key => {
+                                const normalizedKey = normalizeHeader(key);
+                                return normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey);
+                            });
+                            if (foundPartial) return row[foundPartial];
+                        }
+
+                        return null;
+                    };
+
+                    // Extract multiple year budget entries from Excel row
+                    const extractBudgetData = (row) => {
+                        const budgetData = [];
+                        
+                        // Look for Y1, Y2, Y3, Y4, etc. columns
+                        for (let yearNum = 1; yearNum <= 10; yearNum++) {
+                            const yearKey = `Y${yearNum}`;
+                            const budgetAmount = row[yearKey];
+                            
+                            if (budgetAmount && String(budgetAmount).trim()) {
+                                const amount = parseFloat(String(budgetAmount).replace(/,/g, ''));
+                                if (!isNaN(amount) && amount > 0) {
+                                    budgetData.push({
+                                        year: yearNum,
+                                        amount: amount
+                                    });
+                                }
+                            }
+                        }
+
+                        return budgetData.length > 0 ? budgetData : null;
+                    };
+
+                    const toIsoDate = (date) => {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    };
+
+                    const excelSerialToIso = (serial) => {
+                        const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+                        if (Number.isNaN(date.getTime())) return null;
+                        return toIsoDate(date);
+                    };
+
+                    const isExcelSerial = (value) => typeof value === 'number' && value > 30000 && value < 60000;
+
+                    const parseFlexibleDate = (text) => {
+                        if (text === null || text === undefined || text === '') return null;
+                        const trimmed = String(text).replace(/\r\n/g, ' ').trim();
+                        if (!trimmed) return null;
+
+                        if (isExcelSerial(Number(trimmed))) {
+                            return excelSerialToIso(Number(trimmed));
+                        }
+
+                        const mdy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                        if (mdy) {
+                            const first = Number(mdy[1]);
+                            const second = Number(mdy[2]);
+                            const year = Number(mdy[3]);
+
+                            // Prefer MM/DD/YYYY, but allow DD/MM/YYYY when day is > 12.
+                            if (first > 12 && second <= 12) {
+                                const date = new Date(year, second - 1, first);
+                                if (!Number.isNaN(date.getTime())) return toIsoDate(date);
+                            } else {
+                                const date = new Date(year, first - 1, second);
+                                if (!Number.isNaN(date.getTime())) return toIsoDate(date);
+                                const altDate = new Date(year, second - 1, first);
+                                if (!Number.isNaN(altDate.getTime())) return toIsoDate(altDate);
+                            }
+                        }
+
+                        const parsed = new Date(trimmed);
+                        if (!Number.isNaN(parsed.getTime())) {
+                            return toIsoDate(parsed);
+                        }
+
+                        return null;
+                    };
+
+                    const formatExcelDateValue = (value) => {
+                        if (value === null || value === undefined || value === '') return null;
+                        if (isExcelSerial(value)) return excelSerialToIso(value);
+                        const text = String(value).replace(/\r\n/g, ' ').trim();
+                        return parseFlexibleDate(text) || text;
+                    };
+
+                    const normalizeDateRange = (value) => {
+                        if (value === null || value === undefined || value === '') return null;
+                        if (isExcelSerial(value)) return excelSerialToIso(value);
+
+                        const text = String(value).replace(/\r\n/g, ' ').trim();
+
+                        if (text.includes(' - ')) {
+                            const [start, end] = text.split(' - ').map(part => part.trim());
+                            const isoStart = parseFlexibleDate(start);
+                            const isoEnd = parseFlexibleDate(end);
+                            if (isoStart && isoEnd) return `${isoStart} - ${isoEnd}`;
+                            return text;
+                        }
+
+                        const toMatch = text.match(/^(.+?)\s+to\s+(.+)$/i);
+                        if (toMatch) {
+                            const endPart = toMatch[2].trim();
+                            const yearMatch = endPart.match(/\d{4}/);
+                            const isoEnd = parseFlexibleDate(endPart);
+                            let isoStart = parseFlexibleDate(toMatch[1].trim());
+                            if (!isoStart && yearMatch) {
+                                isoStart = parseFlexibleDate(`${toMatch[1].trim()} ${yearMatch[0]}`);
+                            }
+                            if (isoStart && isoEnd) return `${isoStart} - ${isoEnd}`;
+                        }
+
+                        const dashRange = text.match(/^([A-Za-z]+)\s+(\d{1,2})-(\d{1,2}),\s*(\d{4})$/);
+                        if (dashRange) {
+                            const [, month, day1, day2, year] = dashRange;
+                            const isoStart = parseFlexibleDate(`${month} ${day1}, ${year}`);
+                            const isoEnd = parseFlexibleDate(`${month} ${day2}, ${year}`);
+                            if (isoStart && isoEnd) return `${isoStart} - ${isoEnd}`;
+                        }
+
+                        return formatExcelDateValue(text);
+                    };
+
+                    const normalizeMultiDateField = (value) => {
+                        if (value === null || value === undefined || value === '') return null;
+                        if (isExcelSerial(value)) return excelSerialToIso(value);
+
+                        const text = String(value).replace(/\r\n/g, '\n').trim();
+                        const parts = text.split(/\n+/).map(part => part.trim()).filter(Boolean);
+                        const results = [];
+
+                        parts.forEach((part) => {
+                            const range = normalizeDateRange(part);
+                            if (range && range.includes(' - ') && /^\d{4}-\d{2}-\d{2}/.test(range)) {
+                                results.push(range);
+                                return;
+                            }
+
+                            const single = formatExcelDateValue(part);
+                            if (single && /^\d{4}-\d{2}-\d{2}$/.test(single)) {
+                                results.push(single);
+                                return;
+                            }
+
+                            const embeddedDates = part.match(/\d{1,2}\/\d{1,2}\/\d{4}/g) || [];
+                            embeddedDates.forEach((dateText) => {
+                                const iso = parseFlexibleDate(dateText);
+                                if (iso) results.push(iso);
+                            });
+                        });
+
+                        return results.length > 0 ? [...new Set(results)].join(', ') : text;
+                    };
+
+                    const formatPhoneNumber = (value) => {
+                        if (value === null || value === undefined || value === '') return null;
+                        if (typeof value === 'number') {
+                            return String(Math.trunc(value));
+                        }
+                        return String(value).replace(/\r\n/g, ' ').trim();
+                    };
+
+                    // Map Excel columns to project fields with flexible matching
+                    let currentProgramTitle = '';
+                    const projectsToImport = jsonData.map(row => {
+                        const rawProjectTitle = findColumn(
+                            row,
+                            'Project Title',
+                            'Project',
+                            'Project Name',
+                            'Title',
+                            'Program/Project Title',
+                            'Program Project Title'
+                        );
+                        const rawProgramTitle = findColumn(
+                            row,
+                            'Program Title',
+                            'Program',
+                            'Program Name',
+                            'Program/Project Title',
+                            'Program Project Title'
+                        );
+                        const projectTitle = rawProjectTitle ? String(rawProjectTitle).trim() : '';
+                        const explicitProgramTitle = rawProgramTitle ? String(rawProgramTitle).trim() : '';
+
+                        if (explicitProgramTitle) {
+                            currentProgramTitle = explicitProgramTitle;
+                        } else if (projectTitle && /^program\b/i.test(projectTitle)) {
+                            currentProgramTitle = projectTitle;
+                        }
+
+                        const programLeaderValue = findColumn(row, 'Program Leader', 'Program Manager') || null;
+                        const projectLeaderValue = findColumn(row, 'Project Leader', 'Program/Project Leader', 'Leader', 'Project Lead', 'Project Manager') || programLeaderValue || null;
+
+                        const project = {
+                            ISP: findColumn(row, 'ISP') || null,
+                            programTitle: explicitProgramTitle || currentProgramTitle || null,
+                            projectTitle: projectTitle || null,
+                            projectCode: findColumn(row, 'PALIHAN Code(project)', 'Project Code', 'PALIHAN Code Project', 'ProjectCode') || null,
+                            programCode: findColumn(row, 'PALIHAN Code(program)', 'Program Code', 'PALIHAN Code Program', 'ProgramCode') || null,
+                            responsiblePerson: findColumn(row, 'Responsible Person', 'Responsible', 'Person In Charge') || null,
+                            funding: findColumn(row, 'Funding', 'Funded By', 'Funding Source') || null,
+                            implementingAgency: findColumn(row, 'Implementing Agency', 'Implementing', 'Agency') || null,
+                            programLeader: programLeaderValue,
+                            projectLeader: projectLeaderValue,
+                            emailAddress: findColumn(row, 'Email Address', 'Email') || null,
+                            contactNumber: formatPhoneNumber(findColumn(row, 'Contact Number', 'Telephone Number', 'Contact', 'Phone')) || null,
+                            postalAddress: findColumn(row, 'Postal Address', 'Address', 'Postal') || null,
+                            region: findColumn(row, 'Region', 'Region of IA', 'Region IA', 'Region of Implementing Agency') || null,
+                            cooperatingAgency: findColumn(row, 'Cooperating Agency', 'Cooperating', 'Partner') || null,
+                            originalStart: formatExcelDateValue(findColumn(row, 'Original Start', 'Start Date', 'Originally Approved Start Date')) || null,
+                            originalEnd: formatExcelDateValue(findColumn(row, 'Original End', 'End Date', 'Originally Approved End Date')) || null,
+                            changeStart: formatExcelDateValue(findColumn(row, 'Change Start', 'Changed Start', 'New Implementation Start Date', 'New Implementation Start')) || null,
+                            changeImplementationDate: formatExcelDateValue(findColumn(row, 'Change End', 'Change of Implementation Date', 'Change Implementation', 'Implementation Change', 'New Implementation End Date', 'New Implementation End')) || null,
+                            firstExtension: normalizeDateRange(findColumn(row, 'Project Extension', 'First Extension', '1st Extension')) || null,
+                            secondExtension: normalizeDateRange(findColumn(row, 'Second Extension', '2nd Extension')) || null,
+                            objectives: findColumn(row, 'Objectives', 'Objective') || null,
+                            description: findColumn(row, 'Description') || null,
+                            deliverables: findColumn(row, 'Deliverables', 'Deliverable') || null,
+                            beneficiaries: findColumn(row, 'Beneficiaries', 'Beneficiary') || null,
+                            dcY1Approval: formatExcelDateValue(findColumn(row, 'DC Y1 Approval', 'DC Y1', 'Development Council Y1')) || null,
+                            gcY1Approval: formatExcelDateValue(findColumn(row, 'GC Y1 Approval', 'GC Y1', 'Governance Council Y1')) || null,
+                            execomY1Approval: formatExcelDateValue(findColumn(row, 'Execom Y1 Approval', 'Execom Y1', 'Executive Committee Y1')) || null,
+                            dcY2Renewal: formatExcelDateValue(findColumn(row, 'DC Y2 Renewal', 'Renewal Y2 DC', 'DC Y2')) || null,
+                            gcY2Renewal: formatExcelDateValue(findColumn(row, 'GC Y2 Renewal', 'Renewal Y2 GC', 'GC Y2')) || null,
+                            execomY2Renewal: formatExcelDateValue(findColumn(row, 'Execom Y2 Renewal', 'Renewal Y2 EXECOM', 'Execom Y2')) || null,
+                            dcY3Renewal: formatExcelDateValue(findColumn(row, 'DC Y3 Renewal', 'Renewal Y3 DC', 'DC Y3')) || null,
+                            gcY3Renewal: formatExcelDateValue(findColumn(row, 'GC Y3 Renewal', 'Renewal Y3 GC', 'GC Y3')) || null,
+                            execomY3Renewal: formatExcelDateValue(findColumn(row, 'Execom Y3 Renewal', 'Renewal Y3 EXECOM', 'Execom Y3')) || null,
+                            inceptionMeeting: normalizeDateRange(findColumn(row, 'Inception Meeting', 'Inception')) || null,
+                            mande: normalizeMultiDateField(findColumn(row, 'M&E', 'M and E', 'Monitoring and Evaluation')) || null,
+                            y1BudgetRealignment: normalizeMultiDateField(findColumn(row, 'Y1 Budget Realignment', 'Year 1 Budget')) || null,
+                            y2BudgetRealignment: normalizeMultiDateField(findColumn(row, 'Y2 Budget Realignment', 'Year 2 Budget')) || null,
+                            y3BudgetRealignment: normalizeMultiDateField(findColumn(row, 'Y3 Budget Realignment', 'Year 3 Budget')) || null,
+                            programReview: normalizeMultiDateField(findColumn(row, 'Program Review')) || null,
+                            terminalReview: normalizeMultiDateField(findColumn(row, 'Terminal Review', 'Terminal')) || null,
+                            status: findColumn(row, 'Status', 'Status Of Liquidation') || null,
+                            remarks: findColumn(row, 'Remarks', 'Notes', 'Comments') || null,
+                            bannerProgram: findColumn(row, 'Banner Program', 'BannerProgram') || null,
+                            pillar: findColumn(row, 'Pillar') || null,
+                            strategy: findColumn(row, 'Strategy') || null,
+                            projectAccomplishment: findColumn(row, 'Project Accomplishments', 'Project Accomplishment', 'Accomplishments') || null,
+                        };
+
+                        // Extract all budget years/amounts
+                        const budgetData = extractBudgetData(row);
+                        if (budgetData) {
+                            project.budgetData = budgetData;
+                        }
+                        
+                        // Filter out null values to only send data that exists
+                        return Object.fromEntries(
+                            Object.entries(project).filter(([, value]) => value !== null && value !== undefined && value !== '')
+                        );
+                    }).filter(project => project.projectTitle || project.programTitle);
+
+                    if (projectsToImport.length === 0) {
+                        alert('No importable project rows were found in the selected file. Please verify the sheet content and headers.');
+                        return;
+                    }
+
+                    // Send to backend for saving/updating
+                    const response = await axios.post('http://localhost:8080/ImportProjects', projectsToImport);
+
+                    if (response.status === 200) {
+                        setShowToast(true);
+                        setTimeout(() => setShowToast(false), 3000);
+                        // Refresh the projects list
+                        getInfo();
+                    }
+                } catch (error) {
+                    console.error('Error importing projects:', error);
+                    const message = error.response?.data?.messages?.error
+                        || error.response?.data?.message
+                        || error.message;
+                    alert('Error importing projects: ' + message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            alert('Error reading file: ' + error.message);
+        }
+
+        // Reset file input
+        event.target.value = '';
     };
 
     const fetchAvailableYears = (data) => {
@@ -793,6 +1110,13 @@ const Projects = ({ sidebarExpanded }) => {
                         },
                     }),
                     new TextRun({
+                        text: `Project Accomplishments: ${row.projectAccomplishment || 'N/A'}`,
+                        break: 1.5,
+                        font: {
+                            name: 'Arial',
+                        },
+                    }),
+                    new TextRun({
                         text: `Created At: ${row.created_at}`,
                         break: 1.5,
                         font: {
@@ -850,7 +1174,7 @@ const Projects = ({ sidebarExpanded }) => {
     };
 
     return (
-        <article className='pt-5 pb-5 pe-5'>
+        <article className={`pt-5 pb-5 ${isMobile ? 'ps-3 pe-3' : isTablet ? 'ps-4 pe-4' : 'pe-5'}`}>
             <div className="modal fade" id="viewModal" tabIndex="-1" aria-labelledby="exampleModalLabel" data-bs-backdrop="static" aria-hidden="true">
                 <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
                     <div className="modal-content p-2">
@@ -886,7 +1210,7 @@ const Projects = ({ sidebarExpanded }) => {
                                                 <h6 className='pt-1 fw-bold' id="scrollspyHeading1"></h6>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Project Code:</label>
+                                                        <label className='h6 fw-semibold'>PALIHAN Code:</label>
                                                     </div>
                                                     <div className='col'>
                                                         <label style={{ textAlign: 'justify' }}>{selectedProject.projectCode}</label>
@@ -930,10 +1254,34 @@ const Projects = ({ sidebarExpanded }) => {
                                                 </div>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Budget:</label>
+                                                        <label className='h6 fw-semibold'>Total Budget:</label>
                                                     </div>
                                                     <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.totalBudget}</label>
+                                                        <label style={{ textAlign: 'justify' }}>
+                                                            {(() => {
+                                                                let total = 0;
+                                                                if (selectedProject.budgetArray && Array.isArray(selectedProject.budgetArray)) {
+                                                                    total = selectedProject.budgetArray.reduce((acc, curr) => {
+                                                                        const amt = curr && curr.amount !== undefined ? curr.amount : 0;
+                                                                        const num = typeof amt === 'string' ? parseFloat(String(amt).replace(/,/g, '')) || 0 : Number(amt) || 0;
+                                                                        return acc + num;
+                                                                    }, 0);
+                                                                } else if (selectedProject.budget && typeof selectedProject.budget === 'object') {
+                                                                    total = Object.keys(selectedProject.budget).reduce((acc, year) => {
+                                                                        const val = selectedProject.budget[year];
+                                                                        const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) || 0 : Number(val) || 0;
+                                                                        return acc + num;
+                                                                    }, 0);
+                                                                } else if (selectedProject.totalBudget) {
+                                                                    const tb = selectedProject.totalBudget;
+                                                                    total = typeof tb === 'string' ? parseFloat(tb.replace(/,/g, '')) || 0 : Number(tb) || 0;
+                                                                }
+
+                                                                return total > 0
+                                                                    ? total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                                    : (selectedProject.totalBudget || 'No data');
+                                                            })()}
+                                                        </label>
                                                     </div>
                                                 </div>
                                                 <div className='row pb-2'>
@@ -946,10 +1294,10 @@ const Projects = ({ sidebarExpanded }) => {
                                                 </div>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Program/Project Leader:</label>
+                                                        <label className='h6 fw-semibold'>Project Leader:</label>
                                                     </div>
                                                     <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.programLeader}</label>
+                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.projectLeader || selectedProject.programLeader}</label>
                                                     </div>
                                                 </div>
                                                 <div className='row pb-2'>
@@ -986,13 +1334,13 @@ const Projects = ({ sidebarExpanded }) => {
                                                 </div>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Original Start:</label>
+                                                        <label className='h6 fw-semibold'>Originally Approved Start Date:</label>
                                                     </div>
                                                     <div className='col'>
                                                         <label style={{ textAlign: 'justify' }}>{formatDate(selectedProject.originalStart)}</label>
                                                     </div>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Original End:</label>
+                                                        <label className='h6 fw-semibold'>Originally Approved End Date:</label>
                                                     </div>
                                                     <div className='col'>
                                                         <label style={{ textAlign: 'justify' }}>{formatDate(selectedProject.originalEnd)}</label>
@@ -1000,13 +1348,13 @@ const Projects = ({ sidebarExpanded }) => {
                                                 </div>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Change Start:</label>
+                                                        <label className='h6 fw-semibold'>New Implementation Start Date:</label>
                                                     </div>
                                                     <div className='col'>
                                                         <label style={{ textAlign: 'justify' }}>{formatDate(selectedProject.changeStart)}</label>
                                                     </div>
                                                     <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Change Implementation Date:</label>
+                                                        <label className='h6 fw-semibold'>New Implementation End Date:</label>
                                                     </div>
                                                     <div className='col'>
                                                         <label style={{ textAlign: 'justify' }}>{formatDate(selectedProject.changeImplementationDate)}</label>
@@ -1055,31 +1403,35 @@ const Projects = ({ sidebarExpanded }) => {
 
                                                 </div>
                                                 <div className='row pb-2'>
-                                                    <div className='col-md-3'>
+                                                    <div className='col-12'>
                                                         <label className='h6 fw-semibold'>Objectives:</label>
-                                                    </div>
-                                                    <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.objectives}</label>
-                                                    </div>
-                                                    <div className='col-md-3'>
-                                                        <label className='h6 fw-semibold'>Description:</label>
-                                                    </div>
-                                                    <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.description}</label>
+                                                        <div style={{ whiteSpace: 'pre-wrap', textAlign: 'justify', wordBreak: 'break-word', marginTop: '0.5rem' }}>
+                                                            {selectedProject.objectives || 'N/A'}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className='row pb-2'>
-                                                    <div className='col-md-3'>
+                                                    <div className='col-12'>
+                                                        <label className='h6 fw-semibold'>Description:</label>
+                                                        <div style={{ whiteSpace: 'pre-wrap', textAlign: 'justify', wordBreak: 'break-word', marginTop: '0.5rem' }}>
+                                                            {selectedProject.description || 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className='row pb-2'>
+                                                    <div className='col-12'>
                                                         <label className='h6 fw-semibold'>Deliverables:</label>
+                                                        <div style={{ whiteSpace: 'pre-wrap', textAlign: 'justify', wordBreak: 'break-word', marginTop: '0.5rem' }}>
+                                                            {selectedProject.deliverables || 'N/A'}
+                                                        </div>
                                                     </div>
-                                                    <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.deliverables}</label>
-                                                    </div>
-                                                    <div className='col-md-3'>
+                                                </div>
+                                                <div className='row pb-2'>
+                                                    <div className='col-12'>
                                                         <label className='h6 fw-semibold'>Beneficiaries:</label>
-                                                    </div>
-                                                    <div className='col'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.beneficiaries}</label>
+                                                        <div style={{ whiteSpace: 'pre-wrap', textAlign: 'justify', wordBreak: 'break-word', marginTop: '0.5rem' }}>
+                                                            {selectedProject.beneficiaries || 'N/A'}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className='row pb-2'>
@@ -1232,6 +1584,44 @@ const Projects = ({ sidebarExpanded }) => {
                                                 </div>
                                                 <div className='row pb-2'>
                                                     <div className='col-md-3'>
+                                                        <label className='h6 fw-semibold'>Banner Program:</label>
+                                                    </div>
+                                                    <div className='col'>
+                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.bannerProgram || 'N/A'}</label>
+                                                    </div>
+                                                    <div className='col-md-3'>
+                                                        <label className='h6 fw-semibold'>Tagging:</label>
+                                                    </div>
+                                                    <div className='col'>
+                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.tagging || 'N/A'}</label>
+                                                    </div>
+                                                </div>
+                                                <div className='row pb-2'>
+                                                    <div className='col-md-3'>
+                                                        <label className='h6 fw-semibold'>Pillar:</label>
+                                                    </div>
+                                                    <div className='col'>
+                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.pillar || 'N/A'}</label>
+                                                    </div>
+                                                    <div className='col-md-3'>
+                                                        <label className='h6 fw-semibold'>Strategy:</label>
+                                                    </div>
+                                                    <div className='col'>
+                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.strategy || 'N/A'}</label>
+                                                    </div>
+                                                </div>
+                                                <div className='row pb-2'>
+                                                    <div className='col-md-3'>
+                                                        <label className='h6 fw-semibold'>Project Accomplishments:</label>
+                                                    </div>
+                                                    <div className='col'>
+                                                        <div style={{ whiteSpace: 'pre-wrap', textAlign: 'justify', wordBreak: 'break-word' }}>
+                                                            {selectedProject.projectAccomplishment || 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className='row pb-2'>
+                                                    <div className='col-md-3'>
                                                         <label className='h6 fw-semibold'>Date Created:</label>
                                                     </div>
                                                     <div className='col'>
@@ -1282,9 +1672,32 @@ const Projects = ({ sidebarExpanded }) => {
                                                         <label className='h6 fw-semibold'>Total Budget:</label>
                                                     </div>
                                                     <div className='col-md-3'>
-                                                        <label style={{ textAlign: 'justify' }}>{selectedProject.totalBudget && selectedProject.totalBudget ?
-                                                            selectedProject.totalBudget :
-                                                            "No data"}</label>
+                                                        <label style={{ textAlign: 'justify' }}>
+                                                            {(() => {
+                                                                // Compute total from budgetArray or budget object, fallback to totalBudget
+                                                                let total = 0;
+                                                                if (selectedProject.budgetArray && Array.isArray(selectedProject.budgetArray)) {
+                                                                    total = selectedProject.budgetArray.reduce((acc, curr) => {
+                                                                        const amt = curr && curr.amount !== undefined ? curr.amount : 0;
+                                                                        const num = typeof amt === 'string' ? parseFloat(String(amt).replace(/,/g, '')) || 0 : Number(amt) || 0;
+                                                                        return acc + num;
+                                                                    }, 0);
+                                                                } else if (selectedProject.budget && typeof selectedProject.budget === 'object') {
+                                                                    total = Object.keys(selectedProject.budget).reduce((acc, year) => {
+                                                                        const val = selectedProject.budget[year];
+                                                                        const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) || 0 : Number(val) || 0;
+                                                                        return acc + num;
+                                                                    }, 0);
+                                                                } else if (selectedProject.totalBudget) {
+                                                                    const tb = selectedProject.totalBudget;
+                                                                    total = typeof tb === 'string' ? parseFloat(tb.replace(/,/g, '')) || 0 : Number(tb) || 0;
+                                                                }
+
+                                                                return total > 0
+                                                                    ? total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                                    : (selectedProject.totalBudget || 'No data');
+                                                            })()}
+                                                        </label>
                                                     </div>
                                                 </div>
 
@@ -1650,7 +2063,10 @@ const Projects = ({ sidebarExpanded }) => {
             </div> */}
             <EditProjectModal
                 isEditModalOpen={isEditModalOpen}
-                closeModal={() => setIsEditModalOpen(false)}
+                closeModal={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedProject(null);
+                }}
                 project={selectedProject}
                 refresh={refreshData}
                 showToastF={showToastF}
@@ -1806,6 +2222,27 @@ const Projects = ({ sidebarExpanded }) => {
                             <i className="fa-solid fa-file-excel fs-5"></i>
                         </button>
                     </div>
+                    <div className='sample me-3 importTooltip' style={{ borderRadius: '50px', padding: '7px 2px 2px 2px' }}>
+                        <Tooltip anchorSelect=".importTooltip" style={{ borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+                            Import from Excel
+                        </Tooltip>
+                        <input 
+                            type="file" 
+                            id="importProjectsFile" 
+                            onChange={importFromExcel} 
+                            accept=".xlsx,.xls" 
+                            style={{ display: 'none' }} 
+                        />
+                        <button 
+                            type="button" 
+                            className="btn border-0 importTooltip" 
+                            onClick={() => document.getElementById('importProjectsFile').click()}
+                            data-bs-toggle="tooltip" 
+                            data-bs-title="Import from Excel"
+                        >
+                            <i className="fa-solid fa-upload fs-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1817,8 +2254,14 @@ const Projects = ({ sidebarExpanded }) => {
                 responsive
                 highlightOnHover
                 striped
-                className='pt-5'
-                style={{ paddingLeft: sidebarExpanded ? '300px' : '150px', transition: 'padding-left 0.3s' }}
+                paginationPerPage={isMobile ? 5 : 10}
+                paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 25, 50]}
+                className={!isMobile ? 'pt-5' : ''}
+                style={{ 
+                    paddingLeft: !isMobile && sidebarExpanded ? (isTablet ? '250px' : '300px') : (isMobile ? '0px' : '150px'), 
+                    transition: 'padding-left 0.3s',
+                    fontSize: isMobile ? '12px' : '14px'
+                }}
             />
 
             <div

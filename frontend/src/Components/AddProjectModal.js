@@ -7,29 +7,56 @@ import ReactDOM from 'react-dom';
 import { Tooltip } from 'react-tooltip';
 import CurrencyInput from 'react-currency-input-field';
 
+const remarkOptions = [
+    'No Terminal Report',
+    'No Financial Report',
+    'No Terminal and Financial Report',
+    'Executive Summary of Terminal Technical Accomplishment Report',
+    'Terminal Financial Report (FR)',
+    'Report of Disbursement (ROD) and Report of Checks Issued (RCI)',
+    'List of Equipment Purchased (LEP)',
+    'Property Acknowledgement Receipt (PAR)',
+    'Journal Entry Voucher (JEV) relative to the equipment purchased',
+    'List of Personnel Involved',
+    'Publishable or pre-print manuscript, as may be applicable',
+    'Appraisal/Assessment Report c/o the Monitoring Agency',
+    'Official Receipt/Validated LDDAP-ADA/Deposit Slip for reversion of Unexpended Balance',
+];
+
 const AddProjectModal = () => {
     const [projectCode, setProjectCode] = useState('');
     const [ISP, setISP] = useState('');
+    const [programCode, setProgramCode] = useState('');
     const [programTitle, setProgramTitle] = useState('');
 	const [projectTitle, setProjectTitle] = useState('');
+    const [projectDescription, setProjectDescription] = useState('');
     const [responsiblePerson, setResponsiblePerson] = useState('');
     const [funding, setFunding] = useState('');
     const [budget, setBudget] = useState([]); 
+    const [budgetY1, setBudgetY1] = useState('');
+    const [budgetY2, setBudgetY2] = useState('');
+    const [budgetY3, setBudgetY3] = useState('');
     const [totalBudget, setTotalBudget] = useState(0);
     const [implementingAgency, setImplementingAgency] = useState('');
+    const [projectLeader, setProjectLeader] = useState('');
     const [programLeader, setProgramLeader] = useState('');
     const [emailAddress, setEmailAddress] = useState('');
     const [contactNumber, setContactNumber] = useState('');
     const [postalAddress, setPostalAddress] = useState('');
     const [cooperatingAgency, setCooperatingAgency] = useState('');
+    const [smallestUnit, setSmallestUnit] = useState('');
+    const [address, setAddress] = useState('');
+    const [region, setRegion] = useState('');
     const [originalStart, setOriginalStart] = useState('');
     const [originalEnd, setOriginalEnd] = useState('');
+    const [newImplementationStart, setNewImplementationStart] = useState('');
+    const [newImplementationEnd, setNewImplementationEnd] = useState('');
+    const [implementationApprovalDate, setImplementationApprovalDate] = useState('');
     // const [changeStart, setChangeStart] = useState('');
     // const [changeImplementationDate, setChangeImplementationDate] = useState('');
     // const [firstExtension, setFirstExtension] = useState('');
     // const [secondExtension, setSecondExtension] = useState('');
     const [objectives, setObjectives] = useState('');
-    const [description, setDescription] = useState('');
     const [deliverables, setDeliverables] = useState('');
     const [beneficiaries, setBeneficiaries] = useState('');
     // const [inceptionMeeting, setInceptionMeeting] = useState([null, null]);
@@ -93,10 +120,10 @@ const AddProjectModal = () => {
     
         // Check if at least one field has a value
         const hasValue = Boolean(
-            projectCode || ISP || programTitle || projectTitle || responsiblePerson || funding ||
-            budget.length > 0 || implementingAgency || programLeader || emailAddress ||
-            contactNumber || postalAddress || cooperatingAgency || originalStart ||
-            originalEnd || objectives || description || deliverables || beneficiaries ||
+            projectCode || ISP || programCode || programTitle || projectTitle || responsiblePerson || funding ||
+            implementingAgency || projectLeader || programLeader || emailAddress ||
+            contactNumber || postalAddress || cooperatingAgency || smallestUnit || address || region || originalStart ||
+            originalEnd || newImplementationStart || newImplementationEnd || implementationApprovalDate || objectives || projectDescription || deliverables || beneficiaries ||
             status || remarks
         );
     
@@ -116,29 +143,33 @@ const AddProjectModal = () => {
             await axios.post('http://localhost:8080/Projects', {
                 projectCode,
                 ISP,
+                programCode,
                 programTitle,
                 projectTitle,
                 responsiblePerson,
                 funding,
-                budget: budget.map(item => ({ 
-                    year: item.year, 
-                    // amount: item.amount 
-                })),
-                // totalBudget,
+                budget: [],
+                budgetY1,
+                budgetY2,
+                budgetY3,
+                totalBudget,
                 implementingAgency,
+                projectLeader,
                 programLeader,
                 emailAddress,
                 contactNumber,
                 postalAddress,
                 cooperatingAgency,
+                smallestUnit,
+                address,
+                region,
                 originalStart,
                 originalEnd,
-                // changeStart,
-                // changeImplementationDate,
-                // firstExtension,
-                // secondExtension,
+                newImplementationStart,
+                newImplementationEnd,
+                implementationApprovalDate,
                 objectives,
-                description,
+                description: projectDescription,
                 deliverables,
                 beneficiaries,
                 // inceptionMeeting,
@@ -150,6 +181,7 @@ const AddProjectModal = () => {
                 created_by: `${first_name} ${last_name}`,
             });
             console.log('Project saved successfully');
+            window.dispatchEvent(new Event('projectCreated'));
             setShowToastSuccess(true);
             if (toastTimeout) {
                 clearTimeout(toastTimeout);
@@ -171,17 +203,28 @@ const AddProjectModal = () => {
         setResponsiblePerson('');
         setFunding('');
         setBudget([]);
-        setTotalBudget('');
+        setBudget([]);
+        setBudgetY1('');
+        setBudgetY2('');
+        setBudgetY3('');
+        setTotalBudget(0);
         setImplementingAgency('');
+        setProjectLeader('');
         setProgramLeader('');
         setEmailAddress('');
         setContactNumber('');
         setPostalAddress('');
         setCooperatingAgency('');
+        setSmallestUnit('');
+        setAddress('');
+        setRegion('');
         setOriginalEnd('');
         setOriginalStart('');
+        setNewImplementationStart('');
+        setNewImplementationEnd('');
+        setImplementationApprovalDate('');
         setObjectives('');
-        setDescription('');
+        setProjectDescription('');
         setBeneficiaries('');
         setDeliverables('');
         setStatus('');
@@ -206,6 +249,10 @@ const AddProjectModal = () => {
 		setFunding(e.target.innerText);
 	};
 
+    const handleStatusChange = (e) => {
+        setStatus(e.target.innerText);
+    };
+
     // const handleImplementingChange = (e) => {
     //     setImplementingAgency(e.target.innerText);
     // }
@@ -216,7 +263,16 @@ const AddProjectModal = () => {
 
     const handleRemarksChange = (e) => {
         setRemarks(e.target.innerText);
-    }  
+    };
+
+    const handleRemarkCheckboxChange = (remark) => {
+        const selectedRemarks = remarks ? remarks.split(' | ') : [];
+        const updatedRemarks = selectedRemarks.includes(remark)
+            ? selectedRemarks.filter((selectedRemark) => selectedRemark !== remark)
+            : [...selectedRemarks, remark];
+
+        setRemarks(updatedRemarks.join(' | '));
+    };
 
     const handleOriginalStartChange = (e) => {
         setOriginalStart(e.target.value);
@@ -225,6 +281,11 @@ const AddProjectModal = () => {
     const handleOriginalEndChange = (e) => {
         setOriginalEnd(e.target.value);
     };
+
+    useEffect(() => {
+        const total = Number(budgetY1 || 0) + Number(budgetY2 || 0) + Number(budgetY3 || 0);
+        setTotalBudget(total);
+    }, [budgetY1, budgetY2, budgetY3]);
 
     const generateBudgetFields = () => {
         const startYear = new Date(originalStart).getFullYear();
@@ -298,10 +359,6 @@ const AddProjectModal = () => {
                                     <h5><b>Project Details</b></h5>
                                     <div className="row pt-3">
                                         <div className="col">
-                                            <label className="pb-2">Project Code</label>
-                                            <input type="number" className="form-control" value={projectCode} onChange={(e) => setProjectCode(e.target.value)} required />
-                                        </div>
-                                        <div className='col'>
                                             <label className="pb-2">ISP</label>
                                             <input
                                                 className="form-control dropdown-toggle"
@@ -348,18 +405,6 @@ const AddProjectModal = () => {
                                                 </li>
                                             </ul>
                                         </div>
-                                    </div>
-                                    <div className="row pt-3">
-                                        <div className="col">
-                                            <label className="pb-2">Program Title</label>
-                                            <textarea type="text" className="form-control" value={programTitle} onChange={(e) => setProgramTitle(e.target.value)} required />
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Project Title</label>
-                                            <textarea type="text" className="form-control" value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} required />
-                                        </div>
-                                    </div>
-                                    <div className="row pt-3">
                                         <div className="col">
                                             <label className="pb-2">Responsible Person</label>
                                             <input
@@ -400,6 +445,103 @@ const AddProjectModal = () => {
                                             </ul>
                                         </div>
                                         <div className="col">
+                                            <label className="pb-2">PALIHAN Code(program)</label>
+                                            <input type="text" className="form-control" value={programCode} onChange={(e) => setProgramCode(e.target.value)} />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Program Title</label>
+                                            <textarea type="text" className="form-control" value={programTitle} onChange={(e) => setProgramTitle(e.target.value)} required />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className="col">
+                                            <label className="pb-2">Program Leader</label>
+                                            <input type="text" className="form-control" value={ programLeader } onChange={ (e) => setProgramLeader(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">PALIHAN Code(project)</label>
+                                            <input type="number" className="form-control" value={projectCode} onChange={(e) => setProjectCode(e.target.value)} required />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Project Title</label>
+                                            <textarea type="text" className="form-control" value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} required />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className="col">
+                                            <label className="pb-2">Project Description</label>
+                                            <textarea className="form-control" value={ projectDescription } onChange={ (e) => setProjectDescription(e.target.value) } rows="2" />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Objectives</label>
+                                            <textarea className="form-control" value={ objectives } onChange={ (e) => setObjectives(e.target.value) } rows="2" />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Project Leader</label>
+                                            <input type="text" className="form-control" value={ projectLeader } onChange={ (e) => setProjectLeader(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Email Address</label>
+                                            <input type="email" className="form-control" value={ emailAddress } onChange={ (e) => setEmailAddress(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Contact Number</label>
+                                            <input type="number" className="form-control" value={ contactNumber } onChange={ (e) => setContactNumber(e.target.value) } />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className="col">
+                                            <label className="pb-2">Implementing Agency</label>
+                                            <input type="text" className="form-control" value={ implementingAgency } onChange={ (e) => setImplementingAgency(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Cooperating Agency</label>
+                                            <input type="text" className="form-control" value={ cooperatingAgency } onChange={ (e) => setCooperatingAgency(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Smallest Unit</label>
+                                            <input type="text" className="form-control" value={ smallestUnit } onChange={ (e) => setSmallestUnit(e.target.value) } />
+                                        </div>
+                                        <div className="col">
+                                            <label className="pb-2">Address</label>
+                                            <input type="text" className="form-control" value={ address } onChange={ (e) => setAddress(e.target.value) } />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className="col">
+                                            <label className="pb-2">Region</label>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropRegion"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={region}
+                                                onChange={(e) => setRegion(e.target.value)}
+                                                placeholder='Select Region'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropRegion">
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region I (Ilocos Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region II (Cagayan Valley)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region III (Central Luzon)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IV-A (CALABARZON)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IV-B (MIMAROPA)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region V (Bicol Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VI (Western Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VII (Central Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region VIII (Eastern Visayas)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region IX (Zamboanga Peninsula)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region X (Northern Mindanao)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XI (Davao Region)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XII (SOCCSKSARGEN)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>National Capital Region (NCR)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Cordillera Administrative Region (CAR)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Autonomous Region in Muslim Mindanao (ARMM)</li>
+                                                <li className="dropdown-item" onClick={(e) => setRegion(e.target.innerText)}>Region XIII (Caraga)</li>
+                                            </ul>
+                                        </div>
+                                        <div className="col">
                                             <label className="pb-2">Funding</label>
                                             <input
                                                 className="form-control w-100 dropdown-toggle"
@@ -417,66 +559,32 @@ const AddProjectModal = () => {
                                                 <li className="dropdown-item" onClick={handleFundingChange}>PCAARRD GIA</li>
                                             </ul>
                                         </div>
-                                        <div className="col">
-                                            <label className="pb-2">Implementing Agency</label>
-                                            <input type="text" className="form-control" value={ implementingAgency } onChange={ (e) => setImplementingAgency(e.target.value) }/>
-                                        </div>
-                                        <div className='col'>
-                                            <div className="col">
-                                                <label className="pb-2">Program/Project Leader</label>
-                                                <input type="text" className="form-control" value={ programLeader } onChange={ (e) => setProgramLeader(e.target.value) }/>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="row pt-3">
-                                        <div className="col">
-                                            <label className="pb-2">Email Address</label>
-                                            <input type="email" className="form-control" value={ emailAddress } onChange={ (e) => setEmailAddress(e.target.value) }/>
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Contact Number</label>
-                                            <input type="number" className="form-control" value={ contactNumber } onChange={ (e) => setContactNumber(e.target.value) }/>
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Postal Address</label>
-                                            <input type="text" className="form-control" value={ postalAddress } onChange={ (e) => setPostalAddress(e.target.value) }/>
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Cooperating Agency</label>
-                                            <input type="text" className="form-control" value={ cooperatingAgency } onChange={ (e) => setCooperatingAgency(e.target.value) }/>
-                                        </div>
-                                    </div>
-                                    <div className="row pt-3">
-                                        <div className="col">
-                                            <label className="pb-2">Objectives</label>
-                                            <textarea type="text" className="form-control" value={ objectives } onChange={ (e) => setObjectives(e.target.value) }/>
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Description</label>
-                                            <textarea type="text" className="form-control" value={ description } onChange={ (e) => setDescription(e.target.value) }/>
-                                        </div>
-                                    </div>
-                                    <div className="row pt-3">
-                                        <div className="col">
-                                            <label className="pb-2">Deliverables</label>
-                                            <textarea type="text" className="form-control" value={ deliverables } onChange={ (e) => setDeliverables(e.target.value) }/>
-                                        </div>
-                                        <div className="col">
-                                            <label className="pb-2">Beneficiaries</label>
-                                            <textarea type="text" className="form-control" value={ beneficiaries } onChange={ (e) => setBeneficiaries(e.target.value) }/>
-                                        </div>
                                     </div>
                                 </div>
                                 <div className='container border p-4 mt-3 rounded'>
                                     <h5><b>Project Duration</b></h5>
                                     <div className="row pt-3">
                                         <div className='col'>
-                                            <label className="pb-2">Original Start</label>
+                                            <label className="pb-2">Originally Approved Start Date</label>
                                             <input type="date" className="form-control" value={originalStart} onChange={handleOriginalStartChange} required/>
                                         </div>
                                         <div className='col'>
-                                            <label className="pb-2">Original End</label>
+                                            <label className="pb-2">Originally Approved End Date</label>
                                             <input type="date" className="form-control" value={ originalEnd } onChange={handleOriginalEndChange} required/>
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">New Implementation Start Date</label>
+                                            <input type="date" className="form-control" value={newImplementationStart} onChange={(e) => setNewImplementationStart(e.target.value)} />
+                                        </div>
+                                        <div className='col'>
+                                            <label className="pb-2">New Implementation End Date</label>
+                                            <input type="date" className="form-control" value={newImplementationEnd} onChange={(e) => setNewImplementationEnd(e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <div className="row pt-3">
+                                        <div className='col'>
+                                            <label className="pb-2">Project Implementation Approval Date</label>
+                                            <input type="date" className="form-control" value={implementationApprovalDate} onChange={(e) => setImplementationApprovalDate(e.target.value)} />
                                         </div>
                                     </div>
                                     {/* <div className="row pt-3">
@@ -515,9 +623,30 @@ const AddProjectModal = () => {
                                     <div className="row pt-3">
                                         <div className='col'>
                                             <label className="pb-2">Status</label>
-                                            <textarea type="text" className="form-control" value={ status } onChange={ (e) => setStatus(e.target.value) } rows="1"/>
+                                            <input
+                                                className="form-control w-100 dropdown-toggle"
+                                                id="dropStatus"
+                                                data-bs-toggle="dropdown"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                value={status}
+                                                onChange={(e) => setStatus(e.target.value)}
+                                                placeholder='Select Status'
+                                                readOnly
+                                            />
+                                            <ul className="dropdown-menu p-0" aria-labelledby="dropStatus">
+                                                <li className="dropdown-item" onClick={handleStatusChange}>New</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>On-going</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Completed</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Liquidated</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Ongoing Liquidation</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Unliquidated</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Cleared</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Interminated</li>
+                                                <li className="dropdown-item" onClick={handleStatusChange}>Terminated</li>
+                                            </ul>
                                         </div>
-                                        <div className='col'>
+                                        <div className='col' style={{ opacity: status === 'Completed' ? 1 : 0.5 }}>
                                             <label className="pb-2">Remarks</label>
                                             <input
                                                 className="form-control w-100 dropdown-toggle"
@@ -528,13 +657,36 @@ const AddProjectModal = () => {
                                                 value={remarks}
                                                 onChange={(e) => setRemarks(e.target.value)}
                                                 placeholder='Select Remarks'
-                                                readOnly
+                                                disabled={status !== 'Completed'}
                                             />
-                                            <ul className="dropdown-menu p-0" aria-labelledby="dropRemarks">
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>New</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Ongoing</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Completed</li>
-                                                <li className="dropdown-item" onClick={handleRemarksChange}>Terminated</li>
+                                            <ul
+                                                className="dropdown-menu p-0"
+                                                aria-labelledby="dropRemarks"
+                                                style={{
+                                                    maxHeight: '240px',
+                                                    overflowY: 'auto',
+                                                    whiteSpace: 'normal',
+                                                    pointerEvents: status === 'Completed' ? 'auto' : 'none',
+                                                }}
+                                            >
+                                                <li className="dropdown-item" onClick={() => setRemarks('')}>Select Remarks</li>
+                                                {remarkOptions.map((remark) => (
+                                                    <li className="dropdown-item" key={remark}>
+                                                        <div className="form-check">
+                                                            <input
+                                                                className="form-check-input"
+                                                                type="checkbox"
+                                                                id={`remark-${remark}`}
+                                                                checked={remarks.split(' | ').includes(remark)}
+                                                                onChange={() => handleRemarkCheckboxChange(remark)}
+                                                            />
+                                                            <label className="form-check-label" htmlFor={`remark-${remark}`}>
+                                                                {remark}
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                                <li className="dropdown-item" onClick={() => setRemarks('')}>Others</li>
                                             </ul>
                                         </div>
                                     </div>
@@ -544,9 +696,9 @@ const AddProjectModal = () => {
                                 <button type="button" className="btn btn-outline px-3 py-2 border text-black" data-bs-dismiss="modal" onClick={clear} style={{ fontSize: '14px' }}>Cancel</button>
                                 <button className="btn btn-dark px-3 py-2 border" style={{ fontSize: '14px' }} disabled={!(
                                     ISP || programTitle || projectTitle || responsiblePerson || funding ||
-                                    budget.length > 0 || implementingAgency || programLeader || emailAddress ||
+                                    implementingAgency || programLeader || emailAddress ||
                                     contactNumber || postalAddress || cooperatingAgency || originalStart ||
-                                    originalEnd || objectives || description || deliverables || beneficiaries ||
+                                    originalEnd || objectives || projectDescription || deliverables || beneficiaries ||
                                     status || remarks
                                 )}>Save Project</button>
                             </div>

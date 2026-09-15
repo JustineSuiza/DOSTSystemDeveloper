@@ -1,0 +1,84 @@
+/* Investment table styles to match Major layout */
+.investment-table thead th {
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 600;
+  color: #222;
+}
+.investment-table tbody tr {
+  height: 72px;
+  border-bottom: 1px solid #e9ecef;
+}
+.investment-table tbody tr:nth-child(odd) {
+  background: #fafafa;
+}
+.investment-table td, .investment-table th {
+  vertical-align: middle;
+  padding: 18px 16px;
+}
+.investment-actions .investment-icon-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f2f2f2;
+  border: 0;
+  color: #222;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.investment-actions .investment-icon-button:hover,
+.investment-actions .investment-icon-button:focus {
+  background: #e9ecef;
+  color: #222;
+  box-shadow: none;
+}
+
+.investment-card {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent;
+}
+.investment-card .card-body {
+  padding: 0 !important;
+}
+
+.investment-table-wrapper {
+  border: 0 !important;
+}
+
+.investment-table .rdt_Table,
+.investment-table .rdt_TableWrapper,
+.investment-table .rdt_TableHead,
+.investment-table .rdt_TableRow,
+.investment-table .rdt_TableCell,
+.investment-table .rdt_TableHeadCell,
+.investment-table .rdt_TableCol {
+  border: 0 !important;
+}
+
+.investment-table .rdt_TableRow {
+  border-bottom: 1px solid #e9ecef !important;
+}
+
+.investment-table .rdt_TableHeadRow {
+  border-bottom: 1px solid #e9ecef !important;
+}
+
+.investment-table .rdt_TableCell,
+.investment-table .rdt_TableHeadCell {
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.investment-table .rdt_TableRow:hover {
+  background: #f8f9fa;
+}
+
+/* ensure pagination stays separated below scroll */
+.investment-table .rdt_Pagination {
+  border-top: 1px solid #e9ecef;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+

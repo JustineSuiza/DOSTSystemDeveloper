@@ -154,6 +154,13 @@ ul {
   margin-top: 50px;
 }
 
+.sidebar .dropdown-menu {
+  margin-top: 0;
+  min-width: 220px;
+  max-width: 220px;
+  white-space: normal;
+}
+
 ul.dropdown-menu li .dropdown-item:hover {
   background-color: transparent !important;
   color: #000;
