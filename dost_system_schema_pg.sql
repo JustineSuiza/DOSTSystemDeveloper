@@ -478,3 +478,18 @@ CREATE TABLE "idd_proposals_tbl" (
 CREATE INDEX idx_concept_proposals_project ON "concept_proposals_tbl"("project_id");
 CREATE INDEX idx_fullblown_proposals_project ON "fullblown_proposals_tbl"("project_id");
 CREATE INDEX idx_idd_proposals_project ON "idd_proposals_tbl"("project_id");
+
+-- ==========================================
+-- Row Level Security
+-- Blocks Supabase's public anon key (no policies = no access).
+-- The PHP backend connects as "postgres", which bypasses RLS, so the app is unaffected.
+-- Do NOT add FORCE ROW LEVEL SECURITY — that would also block the postgres superuser.
+-- ==========================================
+DO $$
+DECLARE t text;
+BEGIN
+  FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+  END LOOP;
+END $$;
