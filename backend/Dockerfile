@@ -2,13 +2,13 @@
 # Used by Render (Docker runtime). Document root = /var/www/html/public
 FROM php:8.2-apache
 
-# System deps: libpq-dev builds the pgsql extensions; unzip for composer
+# System deps: libpq-dev builds the pgsql extensions; libicu-dev for intl; unzip for composer
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev unzip \
+    && apt-get install -y --no-install-recommends libpq-dev libicu-dev unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# PHP extensions: mysqli (legacy/local) + pgsql/pdo_pgsql (Supabase)
-RUN docker-php-ext-install mysqli pdo_mysql pgsql pdo_pgsql
+# PHP extensions: mysqli (legacy/local) + pgsql/pdo_pgsql (Supabase) + intl (CI4 requirement)
+RUN docker-php-ext-install mysqli pdo_mysql pgsql pdo_pgsql intl
 
 # Generous upload/processing limits (Excel + PDF imports)
 RUN echo "upload_max_filesize=50M" > /usr/local/etc/php/conf.d/app.ini \
