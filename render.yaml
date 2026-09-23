@@ -11,7 +11,7 @@ services:
       - key: CI_ENVIRONMENT
         value: production
       - key: app.baseURL
-        value: https://dost-backend.onrender.com/
+        value: https://dost-backend-g1nw.onrender.com/
       - key: database.default.DBDriver
         value: Postgre
       - key: database.default.hostname
