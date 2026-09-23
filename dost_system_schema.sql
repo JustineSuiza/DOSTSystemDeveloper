@@ -106,12 +106,14 @@ CREATE TABLE user (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Sample user accounts (imported from existing dump)
+-- Passwords are bcrypt hashes (password_hash/PASSWORD_DEFAULT).
+-- Plaintext equivalents: admin, sample, mike1, 1234566, Test123456
 INSERT INTO `user` (`id`, `first_name`, `last_name`, `password`, `email`, `user_lvl`, `reset_token`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'Joshua', 'Barte', 'admin', 'bartejoshua190@gmail.com', '0', '', '2024-05-09 09:29:55', '2024-05-14 12:03:24', ''),
-(2, 'sample', 'sample', 'sample', 'sample@gmail.com', '1', '', '2024-05-15 09:58:24', '2024-05-15 09:59:53', ''),
-(4, 'Mike', 'Zayas', 'mike1', 'mike1@gmail.com', '1', '', '2026-05-25 19:51:51', '2026-05-25 20:00:17', ''),
-(6, 'Justine', 'Suiza', '1234566', 'justinesuiza1@gmail.com', '1', '', '2026-05-25 20:02:43', '2026-05-25 20:03:06', ''),
-(7, 'Test', 'User', 'Test123456', 'test@test.com', '2', '', '2026-06-04 09:23:06', '2026-06-04 09:23:06', '');
+(1, 'Joshua', 'Barte', '$2y$10$HqUW8H0MHBk0EnQqgHovu.U69njhStKKw3rrornrBMg3KgSr1HiNS', 'bartejoshua190@gmail.com', '0', '', '2024-05-09 09:29:55', '2024-05-14 12:03:24', ''),
+(2, 'sample', 'sample', '$2y$10$PWoIIj1cGT16c0gdKhDaCOtbF/QOENlHo4d6egkL08Fvws7/8p8U.', 'sample@gmail.com', '1', '', '2024-05-15 09:58:24', '2024-05-15 09:59:53', ''),
+(4, 'Mike', 'Zayas', '$2y$10$QEQ3saVstHDdk6jNr1Ui1uNLO4Vs7kYSaM30yvI4MIp.nwpq69E2.', 'mike1@gmail.com', '1', '', '2026-05-25 19:51:51', '2026-05-25 20:00:17', ''),
+(6, 'Justine', 'Suiza', '$2y$10$/OYxOmB2fvfIvkUGuJf/JeFa5VzzzmpHR.FlJAoBoUTqOKy8LfZYK', 'justinesuiza1@gmail.com', '1', '', '2026-05-25 20:02:43', '2026-05-25 20:03:06', ''),
+(7, 'Test', 'User', '$2y$10$Y8vfshaES07o9gDl7nCtDOr8wpzZrM3NShb.i2RzDSs67VYv8s84m', 'test@test.com', '2', '', '2026-06-04 09:23:06', '2026-06-04 09:23:06', '');
 
 -- Releases Table
 CREATE TABLE releases_tbl (

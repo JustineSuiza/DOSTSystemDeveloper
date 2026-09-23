@@ -64,7 +64,7 @@ class Accounts extends ResourceController
         'first_name' => $this->request->getVar('first_name'),
         'last_name' => $this->request->getVar('last_name'),
         // 'username' => $this->request->getVar('username'),
-        'password' => $this->request->getVar('password'),
+        'password' => password_hash($this->request->getVar('password'), PASSWORD_DEFAULT),
         'email' => $this->request->getVar('email'),
         'user_lvl' => $this->request->getVar('user_lvl'),
     ];
@@ -113,7 +113,7 @@ class Accounts extends ResourceController
             'first_name' => $this->request->getVar('first_name'),
             'last_name' => $this->request->getVar('last_name'),
             // 'username' => $this->request->getVar('username'),
-            'password' => $this->request->getVar('password'),
+            'password' => password_hash($this->request->getVar('password'), PASSWORD_DEFAULT),
             'email' => $this->request->getVar('email'),
             'user_lvl' => $this->request->getVar('user_lvl'),
         ];

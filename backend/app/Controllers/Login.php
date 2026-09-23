@@ -27,11 +27,14 @@ class Login extends ResourceController
         }
 
         $model = new UserModel();
-        $user = $model->where('email', $data['email'])
-                      ->where('password', $data['password'])
-                      ->first();
+        $user = $model->where('email', $data['email'])->first();
 
-        if ($user) {
+        $isValidPassword = $user && password_verify($data['password'], $user['password']);
+        if (!$isValidPassword && $user && $user['password'] === $data['password']) {
+            $isValidPassword = true;
+        }
+
+        if ($user && $isValidPassword) {
             session()->set('user_id', $user['id']);
             session()->set('logged_in', true);
 

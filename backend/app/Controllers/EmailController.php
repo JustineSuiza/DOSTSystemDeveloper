@@ -129,8 +129,8 @@ public function resetPassword()
         return $this->respond(['error' => 'Invalid reset link'], 400);
     }
 
-    // Store the password as plain text
-    $user['password'] = $password;
+    // Store the password as a bcrypt hash
+    $user['password'] = password_hash($password, PASSWORD_DEFAULT);
     $user['reset_token'] = null; // Clear the reset token
 
     $model->save($user);
