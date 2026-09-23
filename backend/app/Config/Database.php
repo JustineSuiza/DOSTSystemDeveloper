@@ -23,6 +23,18 @@ class Database extends Config
 
     /**
      * The default database connection.
+     *
+     * Local development uses MySQLi. For production (Render + Supabase Postgres),
+     * override via environment variables, e.g.:
+     *   database.default.DBDriver = Postgre
+     *   database.default.hostname = db.<project>.supabase.co
+     *   database.default.port     = 5432
+     *   database.default.database = postgres
+     *   database.default.username = postgres
+     *   database.default.password = <supabase pw>
+     *   database.default.sslmode  = require
+     *   database.default.charset  = UTF8
+     * Underscore forms (database_default_hostname) work too.
      */
     public array $default = [
         'DSN'          => '',
@@ -43,6 +55,7 @@ class Database extends Config
         'failover'     => [],
         'port'         => 3306,
         'numberNative' => false,
+        'sslmode'      => '',
     ];
 
     /**
