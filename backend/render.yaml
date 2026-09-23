@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: dost-backend
+    runtime: php
+    rootDir: backend
+    buildCommand: composer install --no-dev --optimize-autoloader
+    autoDeploy: true
+    envVars:
+      - key: CI_ENVIRONMENT
+        value: production
+      - key: app_baseURL
+        value: https://dost-backend.onrender.com/
+      - key: database.default.hostname
+        sync: false
+      - key: database.default.database
+        sync: false
+      - key: database.default.username
+        sync: false
+      - key: database.default.password
+        sync: false
+      - key: database.default.port
+        value: "3306"

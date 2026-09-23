@@ -349,7 +349,8 @@ const Dashboard = () => {
   const iddCount = iddProposals.length;
 
   // Combined total: prefer API totalProposals, but if it's zero use sum of local categories
-  const combinedTotal = (totalProposals && totalProposals > 0) ? totalProposals : (conceptCount + fullblownCount + iddCount);
+  const localProposalTotal = conceptCount + fullblownCount + iddCount;
+  const combinedTotal = (totalProposals && totalProposals > 0) ? totalProposals : localProposalTotal;
 
   const truncateLabel = (label, maxLength) => {
     if (label.length > maxLength) {
@@ -1620,7 +1621,7 @@ const Dashboard = () => {
                     <i className='fa-solid fa-file-lines fs-5 p-1' style={{ color: '#1976D2' }}></i>
                   </div>
                   <div className='dashboard-summary-content'>
-                    <p className='mb-0 text-dark fs-4 fw-bold'>{conceptCount} ({combinedTotal ? ((conceptCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{conceptCount} ({localProposalTotal ? ((conceptCount / localProposalTotal) * 100).toFixed(0) : 0}%)</p>
                     <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Concept Proposal</p>
                   </div>
                 </div>
@@ -1633,7 +1634,7 @@ const Dashboard = () => {
                     <i className='fa-solid fa-file-circle-check fs-5 p-1' style={{ color: '#8E24AA' }}></i>
                   </div>
                   <div className='dashboard-summary-content'>
-                    <p className='mb-0 text-dark fs-4 fw-bold'>{fullblownCount} ({combinedTotal ? ((fullblownCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{fullblownCount} ({localProposalTotal ? ((fullblownCount / localProposalTotal) * 100).toFixed(0) : 0}%)</p>
                     <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>Fullblown Proposal</p>
                   </div>
                 </div>
@@ -1646,7 +1647,7 @@ const Dashboard = () => {
                     <i className='fa-solid fa-file-prescription fs-5 p-1' style={{ color: '#2E7D32' }}></i>
                   </div>
                   <div className='dashboard-summary-content'>
-                    <p className='mb-0 text-dark fs-4 fw-bold'>{iddCount} ({combinedTotal ? ((iddCount / combinedTotal) * 100).toFixed(0) : 0}%)</p>
+                    <p className='mb-0 text-dark fs-4 fw-bold'>{iddCount} ({localProposalTotal ? ((iddCount / localProposalTotal) * 100).toFixed(0) : 0}%)</p>
                     <p className='text-secondary h6' style={{ fontSize: isMobile ? '13px' : '15px' }}>IDD Proposal</p>
                   </div>
                 </div>
