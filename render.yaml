@@ -1,0 +1,31 @@
+# Render Blueprint - DOST backend (CodeIgniter 4 + Docker)
+# Apply via: Render Dashboard -> New -> Blueprint -> select this repo
+services:
+  - type: web
+    name: dost-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    plan: free
+    envVars:
+      - key: CI_ENVIRONMENT
+        value: production
+      - key: app.baseURL
+        value: https://dost-backend.onrender.com/
+      - key: database.default.DBDriver
+        value: Postgre
+      - key: database.default.hostname
+        value: db.acqxuwdajmfigfqhujma.supabase.co
+      - key: database.default.port
+        value: "5432"
+      - key: database.default.database
+        value: postgres
+      - key: database.default.username
+        value: postgres
+      # Set on Render dashboard after apply (kept out of git)
+      - key: database.default.password
+        sync: false
+      - key: database.default.sslmode
+        value: require
+      - key: database.default.charset
+        value: UTF8
